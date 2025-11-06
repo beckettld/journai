@@ -1,0 +1,134 @@
+import { json, error } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { callLLM, SYSTEM_PROMPTS } from '$lib/server/llm';
+import { getWeeklyVentEntries, summarizeVentEntries } from '$lib/services/firestore';
+
+/**
+ * POST /api/chat
+ * 
+ * Orchestrates message routing between VentAgent and MentorAgent
+ * 
+ * Request body:
+ * {
+ *   message: string;
+ *   mode: 'vent' | 'mentor';
+ *   history: Array<{ role: 'user' | 'assistant', content: string }>;
+ *   uid: string;
+ *   weekId: string;
+ * }
+ * 
+ * Response:
+ * {
+ *   reply: string;
+ *   success: boolean;
+ * }
+ */
+export const POST: RequestHandler = async ({ request }) => {
+  try {
+    const { message, mode, history, uid, weekId } = await request.json();
+
+    if (!message || !mode || !uid || !weekId) {
+      throw error(400, 'Missing required fields: message, mode, uid, weekId');
+    }
+
+    let systemPrompt = SYSTEM_PROMPTS[mode as keyof typeof SYSTEM_PROMPTS];
+    let context = '';
+
+    // For mentor mode, fetch and summarize the week's vent entries
+    if (mode === 'mentor' && uid && weekId) {
+      try {
+        const db = getFirestore(adminApp);
+        const ventEntries = await getWeeklyVentEntries(uid, weekId);
+        context = summarizeVentEntries(ventEntries);
+      } catch (firestoreError) {
+        console.error('Error fetching vent entries:', firestoreError);
+        // Continue without context if Firestore fetch fails
+      }
+    }
+
+    const reply = await callLLM({
+      system: systemPrompt,
+      messages: [
+        ...(history || []),
+        { role: 'user', content: message },
+      ],
+      context,
+    });
+
+    return json({
+      reply,
+      success: true,
+    });
+  } catch (err: any) {
+    console.error('Chat API error:', err);
+    return json(
+      { success: false, error: err.message },
+      { status: err.status || 500 }
+    );
+  }
+};
+
+/**
+ * API Documentation for UI Designers
+ * 
+ * ENDPOINT: POST /api/chat
+ * 
+ * PURPOSE: Route user messages to the appropriate AI agent (VentAgent or MentorAgent)
+ * 
+ * REQUEST BODY:
+ * {
+ *   message: string;           // The user's input message
+ *   mode: "vent" | "mentor";   // Session mode determines which agent is used
+ *   history: Array<{           // Previous messages in this session
+ *     role: "user" | "assistant";
+ *     content: string;
+ *   }>;
+ *   uid: string;               // Firebase user ID (needed for context retrieval)
+ *   weekId: string;            // Week ID in format "YYYY-Www" (e.g., "2025-W45")
+ * }
+ * 
+ * RESPONSE (200 OK):
+ * {
+ *   reply: string;             // AI's response message
+ *   success: boolean;          // True if successful
+ * }
+ * 
+ * RESPONSE (400 Bad Request):
+ * {
+ *   success: false;
+ *   error: string;             // Error message
+ * }
+ * 
+ * BEHAVIOR:
+ * 
+ * 1. VENT MODE (mode: "vent")
+ *    - Uses VentAgent system prompt (reflective, no advice)
+ *    - No context fetching needed
+ *    - Response: 2-3 sentences reflecting/questioning
+ * 
+ * 2. MENTOR MODE (mode: "mentor")
+ *    - Uses MentorAgent system prompt (analytical, advice-giving)
+ *    - Fetches all vent entries from the current week (from Firestore)
+ *    - Summarizes those entries and includes as context
+ *    - Response: Structured format (What I Heard / Key Patterns / Your Focus)
+ * 
+ * FRONTEND USAGE:
+ * 
+ * const response = await fetch('/api/chat', {
+ *   method: 'POST',
+ *   headers: { 'Content-Type': 'application/json' },
+ *   body: JSON.stringify({
+ *     message: userInput,
+ *     mode: sessionMode,  // 'vent' or 'mentor'
+ *     history: sessionMessages,
+ *     uid: currentUser.uid,
+ *     weekId: currentWeekId,  // e.g., "2025-W45"
+ *   })
+ * });
+ * 
+ * const data = await response.json();
+ * if (data.success) {
+ *   addMessageToChat({ role: 'assistant', content: data.reply });
+ * }
+ */
+
