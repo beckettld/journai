@@ -2,9 +2,18 @@
 
 AI journaling app with daily vent sessions and weekly mentor sessions. Built with SvelteKit, Firebase, and AI integration.
 
+## 🚀 Quick Start
+
+To start the development server:
+
+```bash
+npx vite --port 5174
+```
+
 ## 📋 Status
 
 ### ✅ Done
+
 - Firebase auth with auto user creation
 - Session management with persistent timers
 - 12-hour cooldown between vent sessions
@@ -14,6 +23,7 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 - API endpoints for chat and logs
 
 ### 🚧 TODO
+
 1. **Gemini Integration** - Replace OpenAI with Google Gemini API in `src/lib/server/llm.ts`
 2. **AI Prompts** - Refine Vent and Mentor agent prompts for Gemini
 3. **Error Handling** - Add retry logic, rate limit handling, fallback responses
@@ -33,6 +43,7 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 ### Document Schemas
 
 **User** (`/users/{uid}`)
+
 ```typescript
 {
   uid: string;
@@ -45,7 +56,9 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 ```
 
 **Week** (`/users/{uid}/weeks/{weekId}`)
+
 - Week ID format: `YYYY-Www` (e.g., `2025-W45`)
+
 ```typescript
 {
   weekId: string;
@@ -57,7 +70,9 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 ```
 
 **Vent Session** (`/users/{uid}/weeks/{weekId}/ventSessions/{sessionId}`)
+
 - Session ID format: `YYYY-MM-DD_HH-MM-SS` (e.g., `2025-11-06_12-42-06`)
+
 ```typescript
 {
   startTime: number;               // Unix timestamp (ms)
@@ -70,9 +85,11 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 ```
 
 **Draft** (`/users/{uid}/weeks/{weekId}/drafts/{date}`)
+
 - Date format: `YYYY-MM-DD`
 - Auto-saves every 5 seconds during active session
 - Deleted when session completes
+
 ```typescript
 {
   mode: 'vent' | 'mentor';
@@ -84,7 +101,9 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 ```
 
 **Mentor Entry** (`/users/{uid}/weeks/{weekId}/entries/{entryId}`)
+
 - Entry ID: Always `"mentor"`
+
 ```typescript
 {
   id: "mentor";
@@ -97,6 +116,7 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 ```
 
 **Message Type**
+
 ```typescript
 {
   role: 'user' | 'assistant';
@@ -108,17 +128,20 @@ AI journaling app with daily vent sessions and weekly mentor sessions. Built wit
 ## 🚀 Setup
 
 1. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 2. **Configure Firebase**
+
    - Create Firebase project
    - Enable Google Sign-In auth
    - Enable Firestore
    - Download service account key
 
 3. **Environment variables** (`.env.local`)
+
 ```env
    # Firebase Client
 VITE_FIREBASE_API_KEY=...
@@ -138,13 +161,15 @@ OPENAI_API_KEY=...
 ```
 
 4. **Run dev server**
+
 ```bash
    npm run dev
-   ```
+```
 
 ## 🔌 API Endpoints
 
 **POST `/api/chat`** - Send message, get AI response
+
 ```json
 {
   "message": "...",
@@ -156,6 +181,7 @@ OPENAI_API_KEY=...
 ```
 
 **POST `/api/logs`** - Save session
+
 ```json
 {
   "uid": "...",
@@ -169,6 +195,7 @@ OPENAI_API_KEY=...
 ```
 
 **GET `/api/logs`** - Get sessions
+
 - Query params: `uid`, `weekId`, `type` (optional: "vent" | "all")
 
 ## 🛠 Tech Stack
