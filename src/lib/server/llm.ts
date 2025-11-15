@@ -1,67 +1,66 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { Message } from '$lib/stores/sessionStore';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { Message } from "$lib/stores/sessionStore";
 
 // Initialize Gemini API
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export type LLMRequest = {
-  system: string;
-  messages: Array<{
-    role: 'user' | 'assistant';
-    content: string;
-  }>;
-  context?: string;
+    system: string;
+    messages: Array<{
+        role: "user" | "assistant";
+        content: string;
+    }>;
+    context?: string;
 };
 
 /**
  * Call Gemini API with system prompt and conversation history
  */
 export async function callLLM(request: LLMRequest): Promise<string> {
-  const systemPrompt =
-    request.context && request.context.length > 0
-      ? `${request.system}\n\n---\n\n${request.context}`
-      : request.system;
+    const systemPrompt =
+        request.context && request.context.length > 0
+            ? `${request.system}\n\n---\n\n${request.context}`
+            : request.system;
 
-  const model = gemini.getGenerativeModel({ 
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    systemInstruction: systemPrompt,
-  });
+    const model = gemini.getGenerativeModel({
+        model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    });
 
-  // Separate messages: last user message is what we're responding to
-  // All previous messages are history
-  const allMessages = [...request.messages];
-  const lastMessage = allMessages[allMessages.length - 1];
-  
-  if (!lastMessage || lastMessage.role !== 'user') {
-    throw new Error('Last message must be from user');
-  }
+    // Separate messages: last user message is what we're responding to
+    // All previous messages are history
+    const allMessages = [...request.messages];
+    const lastMessage = allMessages[allMessages.length - 1];
 
-  const lastUserMessage = lastMessage.content;
-  const historyMessages = allMessages.slice(0, -1);
-  
-  // Convert history to Gemini format
-  const conversationHistory = historyMessages.map((msg) => ({
-    role: msg.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: msg.content }],
-  }));
+    if (!lastMessage || lastMessage.role !== "user") {
+        throw new Error("Last message must be from user");
+    }
 
-  const chat = model.startChat({
-    history: conversationHistory,
-    generationConfig: {
-      temperature: 0.8,
-      maxOutputTokens: 500,
-    },
-  });
+    const lastUserMessage = lastMessage.content;
+    const historyMessages = allMessages.slice(0, -1);
 
-  const result = await chat.sendMessage(lastUserMessage);
-  return result.response.text();
+    // Convert history to Gemini format
+    const conversationHistory = historyMessages.map((msg) => ({
+        role: (msg.role === "assistant" ? "model" : "user") as "user" | "model",
+        parts: [{ text: msg.content }],
+    }));
+
+    const chat = model.startChat({
+        history: conversationHistory as any,
+        generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: 500,
+        },
+    });
+
+    const result = await chat.sendMessage(lastUserMessage);
+    return result.response.text();
 }
 
 /**
  * System prompts for each agent
  */
 export const SYSTEM_PROMPTS = {
-  vent: `You are an empathetic listener trained in reflective listening techniques similar to ELIZA. Your role is to help the user explore their feelings and thoughts without offering advice or judgment.
+    vent: `You are an empathetic listener trained in reflective listening techniques similar to ELIZA. Your role is to help the user explore their feelings and thoughts without offering advice or judgment.
 
 Guidelines:
 - Reflect back what the user says in your own words
@@ -77,7 +76,7 @@ Example responses:
 - "When you describe that, I hear a sense of uncertainty. Tell me more about that."
 - "That's a lot to carry. How has this been affecting your days?"`,
 
-  mentor: `You are a wise, empathetic mentor reviewing the user's week of reflections. Your role is to synthesize patterns, validate their experiences, and provide actionable guidance for the week ahead.
+    mentor: `You are a wise, empathetic mentor reviewing the user's week of reflections. Your role is to synthesize patterns, validate their experiences, and provide actionable guidance for the week ahead.
 
 Guidelines:
 - Review the provided vent entries for emotional themes, recurring situations, and growth moments
@@ -92,4 +91,3 @@ Response format:
 2. **Key Patterns**: 2-3 bullet points of observations
 3. **Your Focus for Next Week**: 2-3 concrete suggestions or practices`,
 };
-
