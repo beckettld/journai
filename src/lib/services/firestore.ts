@@ -15,6 +15,12 @@ import {
 import { db } from '$lib/firebase/client';
 import type { Message } from '$lib/stores/sessionStore';
 
+export type JournalEntry = {
+  id: string;
+  date: string;
+  content: string;
+}
+
 export type ChatEntry = {
   id: string;
   mode: 'vent' | 'mentor';
@@ -154,6 +160,28 @@ export async function getWeekDocument(uid: string, weekId: string): Promise<Week
     ...weekDoc.data(),
   } as WeekDocument;
 }
+
+export async function saveJournalEntry(uid: string, date: string, content: string): Promise<void> {
+  const ref = doc(db, `users/${uid}/journal`, date);
+  await setDoc(ref, {
+    date,
+    content,
+    lastUpdated: Timestamp.now()
+  }, { merge: true });
+}
+
+export async function getJournalEntry(uid: string, date: string): Promise<string> {
+  const ref = doc(db, `users/${uid}/dailyJournal`, date);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()){
+    throw new Error('journal entry does not exist!');
+  }
+  return snap.data().content;
+
+}
+
+
 
 /**
  * Check if user can start a new vent session (12 hour cooldown)

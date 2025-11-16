@@ -23,7 +23,6 @@ export const POST: RequestHandler = async ({ request }) => {
   try {
     const { uid, weekId, entryId, mode, messages, summary, startTime, durationMinutes } =
       await request.json();
-
     if (!uid || !weekId || !entryId || !mode || !messages) {
       throw error(400, 'Missing required fields');
     }

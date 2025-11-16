@@ -76,6 +76,10 @@
     goto('/session/daily');
   }
 
+  function startJournal() {
+    goto('/session/journal');
+  }
+
   function startWeekly() {
     if (mentorEnabled) {
       goto('/session/weekly');
@@ -134,6 +138,19 @@
           </p>
           <button class="session-button" on:click={startDaily}>
             Start Daily Session
+          </button>
+        </div>
+
+        <div class="session-card journal-card">
+          <div class="card-header">
+            <h3>Daily Journal Entry</h3>
+            <span class="badge">30 min</span>
+          </div>
+          <p class="card-description">
+            Write about your day here...
+          </p>
+          <button class="session-button" on:click={startJournal}>
+            Start Daily Journaling
           </button>
         </div>
 
