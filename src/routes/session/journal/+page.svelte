@@ -1,104 +1,132 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { authUser } from '$lib/stores/authStore';   // ★ FIXED: import auth store
+  import { authUser } from '$lib/stores/authStore';
   import image from '$lib/images/journal-bg.png';
   import creature from '$lib/images/capybara.png';
 
   let feedback = "";
   let journalText = "";
   let timeoutId: NodeJS.Timeout | null = null;
-  const WAIT_TIME = 5000; // 5 seconds
+  const WAIT_TIME = 5000; // 5 seconds - for LLM debounce
 
-  // Get today's date
-  const today = new Date();
+  // Autosave settings
+  const AUTOSAVE_INTERVAL_MS = 60_000; // save to DB every 60s
+  let autosaveTimer: NodeJS.Timeout | null = null;
+  let isSaving = false; // simple lock to avoid parallel saves
 
-  // Format it however you like (example: YYYY-MM-DD)
+  // Helper: ISO date YYYY-MM-DD
+  const isoToday = () => new Date().toISOString().slice(0, 10);
+
+  // Get today's date 
+  const today = new Date(); 
   const formattedDate = today.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-
-
+     year: 'numeric', month: 'long', day: 'numeric' 
+     });
 
   // --- API CALLS ---
 
+  // call your LLM elaborate endpoint (debounced)
   async function sendApiUpdate(content: string) {
     if (!$authUser?.uid) return;
+    if (!content || content.trim().length === 0) return;
 
-  try {
-        const res = await fetch("/api/journal/elaborate", {
+    try {
+      const res = await fetch("/api/journal/elaborate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            content,
-            uid: $authUser.uid
+          content,
+          uid: $authUser.uid
         })
-        });
+      });
 
-        const data = await res.json();
-        console.log('data', data);
-        feedback = data.response;    // ★ Store LLM output
-        console.log('feedback change', feedback)
+      const data = await res.json();
+      // adapt to whatever your endpoint returns
+      feedback = data?.response ?? data?.reply ?? "";
+      console.log("feedback change", feedback);
     } catch (err) {
-    console.error("Failed to call API", err);
+      console.error("Failed to call API", err);
     }
   }
 
-  async function uploadDailyEntry() {
-    if (!$authUser?.uid) {
-      console.warn("Tried to save journal but user is not logged in"); 
-      return;
-    }
+  // Save current text to DB via entry endpoint
+  async function saveDraftToDB() {
+    if (isSaving) return; // already saving, skip
+    if (!$authUser?.uid) return;
+    if (!journalText || journalText.trim().length === 0) return; // don't save empty drafts
 
-    const today = new Date().toISOString().slice(0, 10);
+    isSaving = true;
+    const date = isoToday();
 
     try {
-      await fetch("/api/journal/entry", {
+      const res = await fetch("/api/journal/entry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          uid: $authUser.uid,        // ★ FIXED (added)
+          uid: $authUser.uid,
+          date,
+          content: journalText
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("Autosave failed:", data);
+      } else {
+        console.log("Autosaved draft to DB", date);
+        // Optionally clear localStorage because DB is now source-of-truth
+        localStorage.setItem("currentJournalText", journalText);
+      }
+    } catch (err) {
+      console.error("Autosave error:", err);
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  // Called by midnight scheduler — keeps existing behavior
+  async function uploadDailyEntry() {
+    if (!$authUser?.uid) {
+      console.warn("Tried to save journal but user is not logged in");
+      return;
+    }
+
+    const today = isoToday();
+
+    try {
+      const res = await fetch("/api/journal/entry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: $authUser.uid,
           date: today,
           content: journalText
         })
       });
 
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("Daily upload failed:", data);
+      }
+
       // Clear for the next day
       journalText = "";
-
+      localStorage.removeItem("currentJournalText");
       localStorage.setItem("lastResetDate", today);
     } catch (err) {
       console.error("Daily journal upload failed", err);
     }
   }
 
-   // --- Load from database ---
-
-  async function loadJournalFromDB() {
-    if (!$authUser?.uid) return;
-
-    const today = new Date().toISOString().slice(0, 10);
-
-    try {
-      const res = await fetch(`/api/journal/entry?uid=${$authUser.uid}&date=${today}`);
-
-      const data = await res.json();
-
-      if (data.success) {
-        return data.content;
-      }
-
-      return null;
-    } catch (err) {
-      console.error("Error loading journal entry:", err);
-      return null;
-    }
-  }
-
   // --- EDIT LISTENING / DEBOUNCE ---
 
   function handleInput() {
+    // Save to localStorage immediately so drafts persist across reloads
+    if (mounted) {
+      localStorage.setItem("currentJournalText", journalText);
+    }
+
+    // Debounce LLM elaborate call (pause detection)
     if (timeoutId) clearTimeout(timeoutId);
 
     timeoutId = setTimeout(() => {
@@ -106,11 +134,10 @@
     }, WAIT_TIME);
   }
 
-  // --- MIDNIGHT HANDLING ---
+  // --- MIDNIGHT HANDLING (unchanged) ---
 
   function msUntilMidnight() {
     const now = new Date();
-    console.log('now', now);
     const midnight = new Date();
     midnight.setHours(24, 0, 0, 0);
     return midnight.getTime() - now.getTime();
@@ -127,27 +154,89 @@
     }, delay);
   }
 
-  // --- LOAD SAVED TEXT FOR THE DAY ---
+  // --- LOAD / INITIALIZE ---
 
+  let mounted = false;
 
+  async function loadJournalFromDB() {
+    if (!$authUser?.uid) return null;
 
-    onMount(async () => {
+    const today = isoToday();
+
+    try {
+      const res = await fetch(`/api/journal/entry?uid=${$authUser.uid}&date=${today}`);
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        return data.content;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Error loading journal entry:", err);
+      return null;
+    }
+  }
+
+  onMount(async () => {
+    mounted = true;
+
+    // load DB entry if available
     const todayContent = await loadJournalFromDB();
 
     if (todayContent !== null) {
-        // DB entry found → use it
-        journalText = todayContent;
+      journalText = todayContent;
     } else {
-        // No DB entry → fall back to localStorage if exists
-        journalText = localStorage.getItem("currentJournalText") ?? "";
+      // fallback to local draft
+      journalText = localStorage.getItem("currentJournalText") ?? "";
     }
 
+    // Start periodic autosave to DB
+    autosaveTimer = setInterval(() => {
+      saveDraftToDB();
+    }, AUTOSAVE_INTERVAL_MS);
+
+    // Save on tab close / refresh (synchronous attempt)
+    const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+      // try to synchronously persist to localStorage (always works)
+      try {
+        if (mounted) localStorage.setItem("currentJournalText", journalText);
+      } catch (err) {
+        // ignore
+      }
+
+      // Try to synchronously send a final save (navigator.sendBeacon)
+      if (navigator.sendBeacon && $authUser?.uid && journalText && journalText.trim().length > 0) {
+        const payload = JSON.stringify({
+          uid: $authUser.uid,
+          date: isoToday(),
+          content: journalText
+        });
+        navigator.sendBeacon('/api/journal/entry', new Blob([payload], { type: 'application/json' }));
+      }
+
+      // no need to call e.preventDefault(); we just attempt best-effort save
+    };
+
+    window.addEventListener('beforeunload', beforeUnloadHandler);
+
+    // kickoff midnight scheduling as before
     scheduleMidnightUpload();
-    });
+
+    // conserve cleanup references
+    cleanup = () => {
+      window.removeEventListener('beforeunload', beforeUnloadHandler);
+    };
+  });
+
+  // store cleanup for onDestroy
+  let cleanup: (() => void) | null = null;
 
   onDestroy(() => {
     if (midnightTimer) clearTimeout(midnightTimer);
     if (timeoutId) clearTimeout(timeoutId);
+    if (autosaveTimer) clearInterval(autosaveTimer);
+    if (cleanup) cleanup();
   });
 </script>
 
