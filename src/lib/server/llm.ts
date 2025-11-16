@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GEMINI_API_KEY, GEMINI_MODEL } from '$env/static/private';
-=======
 import { GoogleGenerativeAI, type Content, type Part } from '@google/generative-ai';
->>>>>>> origin/journal-branch
+import { GEMINI_API_KEY, GEMINI_MODEL } from '$env/static/private';
 import type { Message } from '$lib/stores/sessionStore';
 
 // Initialize Gemini API
@@ -76,12 +72,7 @@ export async function callLLM(request: LLMRequest): Promise<string> {
       : request.system;
 
   const model = gemini.getGenerativeModel({ 
-<<<<<<< HEAD
     model: GEMINI_MODEL || 'gemini-2.5-flash',
-    systemInstruction: systemPrompt,
-=======
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
->>>>>>> origin/journal-branch
   });
 
   // Separate messages: last user message is what we're responding to
