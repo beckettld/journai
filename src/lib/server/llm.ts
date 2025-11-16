@@ -1,8 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GEMINI_API_KEY, GEMINI_MODEL } from '$env/static/private';
 import type { Message } from '$lib/stores/sessionStore';
 
 // Initialize Gemini API
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+if (!GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is missing in the environment.");
+}
+
+const gemini = new GoogleGenerativeAI(GEMINI_API_KEY);
+
 
 export type LLMRequest = {
   system: string;
@@ -23,7 +29,7 @@ export async function callLLM(request: LLMRequest): Promise<string> {
       : request.system;
 
   const model = gemini.getGenerativeModel({ 
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    model: GEMINI_MODEL || 'gemini-2.5-flash',
     systemInstruction: systemPrompt,
   });
 
@@ -54,7 +60,13 @@ export async function callLLM(request: LLMRequest): Promise<string> {
   });
 
   const result = await chat.sendMessage(lastUserMessage);
-  return result.response.text();
+  const text = result.response.text()?.trim() ?? '';
+
+  if (!text) {
+    throw new Error('The mentor was unable to generate a response. Please try again.');
+  }
+
+  return text;
 }
 
 /**
@@ -92,4 +104,3 @@ Response format:
 2. **Key Patterns**: 2-3 bullet points of observations
 3. **Your Focus for Next Week**: 2-3 concrete suggestions or practices`,
 };
-

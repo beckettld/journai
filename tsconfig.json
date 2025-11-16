@@ -9,6 +9,12 @@
     "skipLibCheck": true,
     "strict": true
   },
-  "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+  "include": [
+    ".svelte-kit/**/*.d.ts",
+    "src/**/*.d.ts",
+    "src/**/*.ts",
+    "src/**/*.js",
+    "src/**/*.svelte"
+  ]
 }
 
