@@ -9,6 +9,18 @@
   let timeoutId: NodeJS.Timeout | null = null;
   const WAIT_TIME = 5000; // 5 seconds
 
+  // Get today's date
+  const today = new Date();
+
+  // Format it however you like (example: YYYY-MM-DD)
+  const formattedDate = today.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+
+
   // --- API CALLS ---
 
   async function sendApiUpdate(content: string) {
@@ -42,7 +54,7 @@
     const today = new Date().toISOString().slice(0, 10);
 
     try {
-      await fetch("/api/journal/save", {
+      await fetch("/api/journal/entry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -61,6 +73,29 @@
     }
   }
 
+   // --- Load from database ---
+
+  async function loadJournalFromDB() {
+    if (!$authUser?.uid) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    try {
+      const res = await fetch(`/api/journal/entry?uid=${$authUser.uid}&date=${today}`);
+
+      const data = await res.json();
+
+      if (data.success) {
+        return data.content;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Error loading journal entry:", err);
+      return null;
+    }
+  }
+
   // --- EDIT LISTENING / DEBOUNCE ---
 
   function handleInput() {
@@ -75,6 +110,7 @@
 
   function msUntilMidnight() {
     const now = new Date();
+    console.log('now', now);
     const midnight = new Date();
     midnight.setHours(24, 0, 0, 0);
     return midnight.getTime() - now.getTime();
@@ -95,7 +131,7 @@
 
 let mounted = false; 
 
-  onMount(() => {
+  onMount(async () => {
     mounted = true;
     const today = new Date().toISOString().slice(0, 10);
     const lastReset = localStorage.getItem("lastResetDate");
@@ -106,6 +142,17 @@ let mounted = false;
     } else {
       journalText = localStorage.getItem("currentJournalText") ?? "";
     }
+
+    try {
+        const todayContent = await loadJournalFromDB();
+        if (todayContent !== null) {
+            journalText = data.content;
+            localStorage.setItem("currentJournalText", journalText);
+        }
+    } catch (err) {
+        console.warn("Could not load journal from Firestore, falling back to localStorage");
+    }
+
 
     scheduleMidnightUpload();
   });
@@ -153,9 +200,14 @@ let mounted = false;
     border-color: #5c411d;
   }
 
+.creature-wrapper {
+  position: absolute;
+  bottom: 2rem;
+  left: 2rem;
+}
 
 .creature-container {
-  position: absolute;
+  position: relative;
   bottom: 1.5rem;
   left: 1.5rem;
   display: flex;
@@ -181,14 +233,18 @@ let mounted = false;
 
 .speech-bubble {
   position: absolute;
-  top: -120px;       /* Move above the creature */
-  left: 320px;       /* Move to the right side of creature's head */
-  max-width: 300px;
+  top: -10%;  /* move above head, scales with creature */
+  left: 70%;  /* to the right of the creature */
+  width: min(20vw, 200px);
+  height: min(20hw, 200px);
+  max-width: 60vw;
+  max-height: 60vw;
   background: #fff7e6;
   border: 3px solid #7a5c2e;
   padding: 1rem 1.2rem;
   font-family: "Courier New", monospace;
   border-radius: 14px;
+  font-size: 0.8rem;
   box-shadow: 0 3px 10px rgba(0,0,0,0.25);
   z-index: 5;
 }
@@ -221,17 +277,39 @@ let mounted = false;
   z-index: -1;
 }
 
+  /* Makes the date sit directly above the textarea */
+  .entry-wrapper {
+    display: flex;
+    flex-direction: column; /* stack vertically */
+    gap: 8px;               /* small space between them */
+    width: 100%;
+    max-width: 600px;       /* optional: limit width */
+  }
+
+  .entry-wrapper p {
+    font-size: 20px;
+    background: white;
+    color: #8b7355;
+    border-radius: 6px;
+    padding: 10px;
+    font-weight: bold;
+    width: 40vw;
+    border: 3px solid #7a5c2e;
+  }
 
 </style>
 
 <div class="page-container" style="background-image: url('{image}')">
+<div class="entry-wrapper">
+ <p>Journal Entry: {formattedDate}</p>
   <textarea
     class="journal-box"
     bind:value={journalText}
     on:input={handleInput}
     placeholder="Write your thoughts here..."
   ></textarea>
-
+  </div>
+    <div class="creature-wrapper">
     <div class="creature-container">
     <img src="{creature}" alt="creature" class="creature" />
 
@@ -240,5 +318,6 @@ let mounted = false;
             {feedback}
             </div>
         {/if}
+    </div>
     </div>
 </div>
