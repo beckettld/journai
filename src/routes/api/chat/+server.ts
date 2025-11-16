@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { callLLM, SYSTEM_PROMPTS } from '$lib/server/llm';
 import { getWeeklyJournalEntries, summarizeJournalEntries } from '$lib/services/firestore';
+import { isUserAdmin, getWeekVentCountServer } from '$lib/services/firestore-server';
 
 /**
  * POST /api/chat
@@ -29,6 +30,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (!message || !mode || !uid || !weekId) {
       throw error(400, 'Missing required fields: message, mode, uid, weekId');
+    }
+
+    // For mentor mode, check if user has access (admin or 5+ vent sessions)
+    if (mode === 'mentor') {
+      const isAdmin = await isUserAdmin(uid);
+      const ventCount = await getWeekVentCountServer(uid, weekId);
+      
+      if (!isAdmin && ventCount < 5) {
+        throw error(403, 'Mentor sessions require 5 completed vent sessions or admin access');
+      }
     }
 
     let systemPrompt = SYSTEM_PROMPTS[mode as keyof typeof SYSTEM_PROMPTS];

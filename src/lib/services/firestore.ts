@@ -44,6 +44,7 @@ export type UserDocument = {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  admin?: boolean;
   createdAt: Timestamp;
   lastLoginAt: Timestamp;
 };
@@ -142,6 +143,20 @@ export async function getWeekVentCount(uid: string, weekId: string): Promise<num
 
   const data = weekDoc.data() as WeekDocument;
   return data.ventEntryCount || 0;
+}
+
+/**
+ * Get user document
+ */
+export async function getUserDocument(uid: string): Promise<UserDocument | null> {
+  const userRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userRef);
+
+  if (!userDoc.exists()) {
+    return null;
+  }
+
+  return userDoc.data() as UserDocument;
 }
 
 /**

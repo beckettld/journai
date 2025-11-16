@@ -85,13 +85,18 @@ export async function callLLM(request: LLMRequest): Promise<string> {
     throw new Error('Last message must be from user');
   }
 
-  const lastUserMessage = lastMessage.content;
+  const lastUserMessage = lastMessage.content?.trim();
+  if (!lastUserMessage || lastUserMessage.length === 0) {
+    throw new Error('Last message content cannot be empty');
+  }
   const historyMessages = allMessages.slice(0, -1);
 
   // Gemini requires the first history message to be from the user.
   // Drop any leading assistant-only messages (e.g., scripted greetings).
+  // Also filter out messages with empty content
   const sanitizedHistory = (() => {
-    const trimmed = [...historyMessages];
+    const trimmed = [...historyMessages]
+      .filter(msg => msg.content && msg.content.trim().length > 0); // Filter out empty messages
     while (trimmed.length > 0 && trimmed[0].role === 'assistant') {
       trimmed.shift();
     }
@@ -99,21 +104,30 @@ export async function callLLM(request: LLMRequest): Promise<string> {
   })();
   
   // Convert history to Gemini format
-  const conversationHistory: Content[] = sanitizedHistory.map((msg) => ({
-    role: msg.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: msg.content }],
-  }));
+  // Ensure each Content has at least one part with non-empty text
+  const conversationHistory: Content[] = sanitizedHistory
+    .filter(msg => msg.content && msg.content.trim().length > 0)
+    .map((msg) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content.trim() }],
+    }));
 
   let text = '';
   for (let attempt = 0; attempt < 3 && !text; attempt++) {
-    const chat = model.startChat({
-      history: conversationHistory,
+    const chatConfig: any = {
+      systemInstruction: systemPrompt,
       generationConfig: {
         temperature: 0.8,
         maxOutputTokens: 500,
       },
-    });
-
+    };
+    
+    // Only include history if it's not empty
+    if (conversationHistory.length > 0) {
+      chatConfig.history = conversationHistory;
+    }
+    
+    const chat = model.startChat(chatConfig);
     const result = await chat.sendMessage(lastUserMessage);
     text = result.response.text()?.trim() ?? '';
   }

@@ -123,11 +123,16 @@
     error = null;
 
     try {
-      const response = await fetch('/api/weekly/mentor', {
+      // Convert sessionLog to history format (remove timestamp field)
+      const history = sessionLog.map(({ role, content }) => ({ role, content }));
+
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: message,
+          message,
+          mode: 'mentor',
+          history,
           uid: $authUser?.uid,
           weekId,
         }),
@@ -266,7 +271,7 @@
         placeholder="Capture the themes, moments, or questions that feel most important right now..."
         disabled={!sessionActive || loading}
         on:keydown={handleUserKeydown}
-      />
+      ></textarea>
       <div class="input-actions">
         <button
           class="submit-button"
@@ -493,19 +498,6 @@
     color: #a0783c;
     opacity: 0.8;
     line-height: 1.3;
-  }
-
-  .hint-wrapper {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    min-width: 200px;
-  }
-
-  .hint-text {
-    font-size: 0.8rem;
-    color: #9f7b47;
   }
 
   .error-banner {

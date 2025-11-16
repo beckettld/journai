@@ -4,7 +4,6 @@
   import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
   import { auth } from '$lib/firebase/client';
   import { onMount } from 'svelte';
-  import { getWeekVentCount } from '$lib/services/firestore';
   import { getISOWeek, getYear } from 'date-fns';
 
   let loading = false;
@@ -13,6 +12,7 @@
   let ventCount = 0;
   let mentorEnabled = false;
   let checkingVentCount = false;
+  let isAdmin = false;
 
   function getCurrentWeekId(): string {
     const now = new Date();
@@ -27,12 +27,27 @@
     checkingVentCount = true;
     try {
       const weekId = getCurrentWeekId();
-      ventCount = await getWeekVentCount($authUser.uid, weekId);
-      mentorEnabled = ventCount >= 0;
+      const params = new URLSearchParams({
+        uid: $authUser.uid,
+        weekId,
+      });
+      
+      const response = await fetch(`/api/mentor/availability?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      mentorEnabled = data.available;
+      ventCount = data.ventCount;
+      isAdmin = data.isAdmin;
     } catch (err: any) {
-      console.error('Failed to check vent count:', err);
+      console.error('Failed to check mentor availability:', err);
       // Default to disabled if check fails
       mentorEnabled = false;
+      ventCount = 0;
+      isAdmin = false;
     } finally {
       checkingVentCount = false;
     }
@@ -166,12 +181,23 @@
             <div class="checking-status">Checking progress...</div>
           {:else if !mentorEnabled}
             <div class="mentor-locked">
-              <p class="locked-message">
-                Complete 5 daily vent sessions to unlock your weekly mentor session.
-              </p>
-              <p class="progress-message">
-                Progress: {ventCount} / 5 sessions
-              </p>
+              {#if isAdmin}
+                <p class="locked-message">
+                  Admin access enabled. You can start a mentor session anytime.
+                </p>
+              {:else}
+                <p class="locked-message">
+                  Complete 5 daily vent sessions to unlock your weekly mentor session.
+                </p>
+                <p class="progress-message">
+                  Progress: {ventCount} / 5 sessions
+                </p>
+              {/if}
+            </div>
+          {/if}
+          {#if isAdmin && mentorEnabled}
+            <div class="admin-badge">
+              <p class="admin-message">Admin: Unlimited access</p>
             </div>
           {/if}
           <button 
@@ -422,6 +448,22 @@
     font-size: 0.85rem;
     margin: 0;
     text-align: center;
+  }
+
+  .admin-badge {
+    margin: 1rem 0;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border-radius: 8px;
+    border: 1px solid #81c784;
+  }
+
+  .admin-message {
+    color: #2e7d32;
+    font-size: 0.85rem;
+    margin: 0;
+    text-align: center;
+    font-weight: 600;
   }
 
 </style>
