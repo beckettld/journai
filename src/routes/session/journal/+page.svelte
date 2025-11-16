@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { authUser } from '$lib/stores/authStore';   // ★ FIXED: import auth store
-  import image from '$lib/images/journal-bg.png';
-  import creature from '$lib/images/capybara.png';
+import { onMount, onDestroy } from 'svelte';
+import { authUser } from '$lib/stores/authStore';   // ★ FIXED: import auth store
+import image from '$lib/images/journal-bg.png';
+import creature from '$lib/images/capybara.png';
 
   let feedback = "";
   let journalText = "";
@@ -221,6 +221,17 @@ let mounted = false;
   z-index: -1;
 }
 
+  .debug-save {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    padding: 0.6rem 1rem;
+    border: 2px dashed #7a5c2e;
+    background: rgba(255, 255, 255, 0.8);
+    font-family: "Courier New", monospace;
+    cursor: pointer;
+  }
+
 
 </style>
 
@@ -231,6 +242,10 @@ let mounted = false;
     on:input={handleInput}
     placeholder="Write your thoughts here..."
   ></textarea>
+
+  <button class="debug-save" on:click={uploadDailyEntry}>
+    Save today&apos;s entry now
+  </button>
 
     <div class="creature-container">
     <img src="{creature}" alt="creature" class="creature" />
