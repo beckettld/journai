@@ -64,11 +64,11 @@ export const GET: RequestHandler = async ({ url }) => {
       content: entry,
     });
 
-  } catch (err: any) {
-    console.error('Error fetching logs:', err);
+  } catch {
     return json(
-      { success: false, error: err.message },
-      { status: err.status || 500 }
+      { success:true,
+        content: ""
+      }
     );
   }
 }

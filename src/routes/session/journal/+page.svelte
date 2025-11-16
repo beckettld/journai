@@ -129,38 +129,22 @@
 
   // --- LOAD SAVED TEXT FOR THE DAY ---
 
-let mounted = false; 
 
-  onMount(async () => {
-    mounted = true;
-    const today = new Date().toISOString().slice(0, 10);
-    const lastReset = localStorage.getItem("lastResetDate");
 
-    if (lastReset !== today) {
-      journalText = "";
-      localStorage.setItem("lastResetDate", today);
+    onMount(async () => {
+    const todayContent = await loadJournalFromDB();
+
+    if (todayContent !== null) {
+        // DB entry found → use it
+        journalText = todayContent;
     } else {
-      journalText = localStorage.getItem("currentJournalText") ?? "";
+        // No DB entry → fall back to localStorage if exists
+        journalText = localStorage.getItem("currentJournalText") ?? "";
     }
-
-    try {
-        const todayContent = await loadJournalFromDB();
-        if (todayContent !== null) {
-            journalText = data.content;
-            localStorage.setItem("currentJournalText", journalText);
-        }
-    } catch (err) {
-        console.warn("Could not load journal from Firestore, falling back to localStorage");
-    }
-
 
     scheduleMidnightUpload();
-  });
+    });
 
-  // Persist text during the day
-  $: if (mounted) {
-  localStorage.setItem("currentJournalText", journalText);
-}
   onDestroy(() => {
     if (midnightTimer) clearTimeout(midnightTimer);
     if (timeoutId) clearTimeout(timeoutId);
