@@ -243,10 +243,6 @@ let mounted = false;
     placeholder="Write your thoughts here..."
   ></textarea>
 
-  <button class="debug-save" on:click={uploadDailyEntry}>
-    Save today&apos;s entry now
-  </button>
-
     <div class="creature-container">
     <img src="{creature}" alt="creature" class="creature" />
 
