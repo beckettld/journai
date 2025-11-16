@@ -28,7 +28,7 @@
     try {
       const weekId = getCurrentWeekId();
       ventCount = await getWeekVentCount($authUser.uid, weekId);
-      mentorEnabled = ventCount >= 5;
+      mentorEnabled = ventCount >= 0;
     } catch (err: any) {
       console.error('Failed to check vent count:', err);
       // Default to disabled if check fails

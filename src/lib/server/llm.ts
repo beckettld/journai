@@ -1,8 +1,14 @@
 import { GoogleGenerativeAI, type Content, type Part } from '@google/generative-ai';
+import { GEMINI_API_KEY, GEMINI_MODEL } from '$env/static/private';
 import type { Message } from '$lib/stores/sessionStore';
 
 // Initialize Gemini API
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+if (!GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is missing in the environment.");
+}
+
+const gemini = new GoogleGenerativeAI(GEMINI_API_KEY);
+
 
 export type LLMRequest = {
   system: string;
@@ -66,7 +72,7 @@ export async function callLLM(request: LLMRequest): Promise<string> {
       : request.system;
 
   const model = gemini.getGenerativeModel({ 
-    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    model: GEMINI_MODEL || 'gemini-2.5-flash',
   });
 
   // Separate messages: last user message is what we're responding to
@@ -96,7 +102,13 @@ export async function callLLM(request: LLMRequest): Promise<string> {
   });
 
   const result = await chat.sendMessage(lastUserMessage);
-  return result.response.text();
+  const text = result.response.text()?.trim() ?? '';
+
+  if (!text) {
+    throw new Error('The mentor was unable to generate a response. Please try again.');
+  }
+
+  return text;
 }
 
 /**
@@ -150,4 +162,3 @@ Example responses:
 - "When you describe that, I hear a sense of uncertainty. Tell me more about that."
 - "That's a lot to carry. How has this been affecting your days?"`
 };
-
