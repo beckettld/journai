@@ -171,7 +171,7 @@ export async function saveJournalEntry(uid: string, date: string, content: strin
 }
 
 export async function getJournalEntry(uid: string, date: string): Promise<string> {
-  const ref = doc(db, `users/${uid}/dailyJournal`, date);
+  const ref = doc(db, `users/${uid}/journal`, date);
   const snap = await getDoc(ref);
 
   if (!snap.exists()){

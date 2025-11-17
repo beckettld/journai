@@ -55,7 +55,7 @@ export const GET: RequestHandler = async ({ url }) => {
     const date = url.searchParams.get('date');
 
     if (!uid || !date) {
-          throw error(400, 'Missing required parameters: uid, weekId');
+          throw error(400, 'Missing required parameters: uid, date');
         }
     const entry = await getJournalEntry(uid, date);
     
