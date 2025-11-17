@@ -2,6 +2,11 @@ import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { 
+  FIREBASE_PROJECT_ID, 
+  FIREBASE_PRIVATE_KEY, 
+  FIREBASE_CLIENT_EMAIL 
+} from '$env/static/private';
 
 let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
@@ -18,10 +23,10 @@ export function getAdminApp(): App {
     return adminApp;
   }
 
-  // Try to load from environment variables first
-  let projectId = process.env.FIREBASE_PROJECT_ID;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-  let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  // Try to load from environment variables first (SvelteKit way)
+  let projectId = FIREBASE_PROJECT_ID;
+  let privateKey = FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let clientEmail = FIREBASE_CLIENT_EMAIL;
 
   // If env vars not set, try to load from JSON file
   if (!projectId || !privateKey || !clientEmail) {
