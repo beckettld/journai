@@ -82,6 +82,7 @@ export async function createOrUpdateUser(
       email: userData.email,
       displayName: userData.displayName,
       photoURL: userData.photoURL,
+      admin: true,
       createdAt: now,
       lastLoginAt: now,
     });
