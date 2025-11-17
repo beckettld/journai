@@ -12,6 +12,7 @@
     focus: string[];
     message?: string;
   };
+  type SessionEntry = { role: 'user' | 'assistant'; content: string; timestamp?: number };
 
   let loading = false;
   let error: string | null = null;
@@ -28,7 +29,9 @@
   let sessionExpired = false;
   let sessionStartTime = 0;
   let sessionTimer: ReturnType<typeof setInterval> | null = null;
-  let sessionLog: { role: 'user' | 'assistant'; content: string; timestamp?: number }[] = [];
+  let sessionLog: SessionEntry[] = [];
+  let userEntries: SessionEntry[] = [];
+  $: userEntries = sessionLog.filter((entry) => entry.role === 'user');
 
   function computeWeekId() {
     const now = new Date();
@@ -125,6 +128,8 @@
     try {
       // Convert sessionLog to history format (remove timestamp field)
       const history = sessionLog.map(({ role, content }) => ({ role, content }));
+      const userEntry = { role: 'user', content: message, timestamp: Date.now() };
+      sessionLog = [...sessionLog, userEntry];
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -147,7 +152,6 @@
       bubbleReply = data.reply;
       sessionLog = [
         ...sessionLog,
-        { role: 'user', content: message, timestamp: Date.now() },
         { role: 'assistant', content: data.reply, timestamp: Date.now() },
       ];
       
@@ -202,6 +206,7 @@
     if (!message || !sessionActive || loading) return;
 
     handleMessage(message);
+    userMessage = '';
   }
 </script>
 
@@ -265,6 +270,19 @@
     </div>
 
     <section class="reflection-section">
+      <div class="user-message-feed" aria-live="polite">
+        {#if userEntries.length}
+          {#each userEntries as entry, index (entry.timestamp ?? index)}
+            <div class="user-message-row">
+              <div class="user-message-bubble">
+                {entry.content}
+              </div>
+            </div>
+          {/each}
+        {:else}
+          <p class="user-placeholder">Your reflections will appear here after you send them.</p>
+        {/if}
+      </div>
       <textarea
         class="mentor-input"
         bind:value={userMessage}
@@ -281,7 +299,7 @@
           {#if loading}
             Sending...
           {:else}
-            Send reflection
+            Send
           {/if}
         </button>
       </div>
@@ -330,9 +348,9 @@
   }
 
   .chat-panel {
-    flex: 0 1 460px;
-    width: min(480px, 44vw);
-    max-width: 500px;
+    flex: 0 1 520px;
+    width: min(520px, 48vw);
+    max-width: 560px;
     min-height: min(78vh, 660px);
     display: flex;
     flex-direction: column;
@@ -376,6 +394,43 @@
     flex-direction: column;
     gap: 0.75rem;
     min-height: 0;
+  }
+
+  .user-message-feed {
+    flex: 1;
+    border: 2px solid #d8c2a4;
+    border-radius: 10px;
+    background: #fffdf8;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+  }
+
+  .user-message-row {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .user-message-bubble {
+    background: linear-gradient(135deg, #7a5c2e 0%, #a87532 100%);
+    color: #fffaf0;
+    padding: 0.6rem 0.85rem;
+    border-radius: 16px 16px 4px 16px;
+    max-width: 85%;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    box-shadow: 0 6px 16px rgba(122, 83, 33, 0.25);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .user-placeholder {
+    font-style: italic;
+    color: #b09772;
+    margin: 0;
   }
 
   .summary-header {
@@ -440,7 +495,7 @@
   }
 
   .mentor-input {
-    flex: 1;
+    flex: 0 0 auto;
     border: 2px solid #7a5c2e;
     border-radius: 10px;
     background: #fffdf8;
@@ -449,7 +504,8 @@
     padding: 1rem;
     resize: none;
     color: #2c2110;
-    min-height: 240px;
+    min-height: 170px;
+    width: 100%;
   }
 
   .mentor-input:focus {

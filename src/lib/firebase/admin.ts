@@ -25,7 +25,9 @@ export function getAdminApp(): App {
 
   // Try to load from environment variables first (SvelteKit way)
   let projectId = FIREBASE_PROJECT_ID;
-  let privateKey = FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let privateKey = process.env.FIREBASE_PRIVATE_KEY
+          ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/gm, "\n")
+          : undefined;
   let clientEmail = FIREBASE_CLIENT_EMAIL;
 
   // If env vars not set, try to load from JSON file
