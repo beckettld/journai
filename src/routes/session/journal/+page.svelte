@@ -1,16 +1,19 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { authUser } from '$lib/stores/authStore';
+  import {fade} from 'svelte/transition';
   import image from '$lib/images/journal-bg.png';
   import creature from '$lib/images/capybara.png';
 
+
   let feedback = "";
   let journalText = "";
+  let success = "";
   let timeoutId: NodeJS.Timeout | null = null;
   const WAIT_TIME = 5000; // 5 seconds - for LLM debounce
 
   // Autosave settings
-  const AUTOSAVE_INTERVAL_MS = 60_000; // save to DB every 60s
+  const AUTOSAVE_INTERVAL_MS = 1800_000; // save to DB every 30 minutes - 60 * 30
   let autosaveTimer: NodeJS.Timeout | null = null;
   let isSaving = false; // simple lock to avoid parallel saves
 
@@ -74,47 +77,16 @@
         console.error("Autosave failed:", data);
       } else {
         console.log("Autosaved draft to DB", date);
-        // Optionally clear localStorage because DB is now source-of-truth
+        success = "journal entry saved...";
         localStorage.setItem("currentJournalText", journalText);
+        setTimeout(()=> {
+          clearSuccess()
+        }, 3000);
       }
     } catch (err) {
       console.error("Autosave error:", err);
     } finally {
       isSaving = false;
-    }
-  }
-
-  // Called by midnight scheduler — keeps existing behavior
-  async function uploadDailyEntry() {
-    if (!$authUser?.uid) {
-      console.warn("Tried to save journal but user is not logged in");
-      return;
-    }
-
-    const today = isoToday();
-
-    try {
-      const res = await fetch("/api/journal/entry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid: $authUser.uid,
-          date: today,
-          content: journalText
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        console.error("Daily upload failed:", data);
-      }
-
-      // Clear for the next day
-      journalText = "";
-      localStorage.removeItem("currentJournalText");
-      localStorage.setItem("lastResetDate", today);
-    } catch (err) {
-      console.error("Daily journal upload failed", err);
     }
   }
 
@@ -134,29 +106,8 @@
     }, WAIT_TIME);
   }
 
-  // --- MIDNIGHT HANDLING (unchanged) ---
-
-  function msUntilMidnight() {
-    const now = new Date();
-    const midnight = new Date();
-    midnight.setHours(24, 0, 0, 0);
-    return midnight.getTime() - now.getTime();
-  }
-
-  let midnightTimer: NodeJS.Timeout;
-
-  function scheduleMidnightUpload() {
-    const delay = msUntilMidnight();
-
-    midnightTimer = setTimeout(async () => {
-      await uploadDailyEntry();
-      scheduleMidnightUpload(); // schedule next
-    }, delay);
-  }
 
   // --- LOAD / INITIALIZE ---
-
-  let mounted = false;
 
   async function loadJournalFromDB() {
     if (!$authUser?.uid) return null;
@@ -177,6 +128,13 @@
       return null;
     }
   }
+
+  // -- SUCCESS --
+  function clearSuccess() {
+    success = "";
+  }
+
+  let mounted = false;
 
   onMount(async () => {
     mounted = true;
@@ -220,9 +178,6 @@
 
     window.addEventListener('beforeunload', beforeUnloadHandler);
 
-    // kickoff midnight scheduling as before
-    scheduleMidnightUpload();
-
     // conserve cleanup references
     cleanup = () => {
       window.removeEventListener('beforeunload', beforeUnloadHandler);
@@ -233,7 +188,6 @@
   let cleanup: (() => void) | null = null;
 
   onDestroy(() => {
-    if (midnightTimer) clearTimeout(midnightTimer);
     if (timeoutId) clearTimeout(timeoutId);
     if (autosaveTimer) clearInterval(autosaveTimer);
     if (cleanup) cleanup();
@@ -245,13 +199,23 @@
   .page-container {
     height: 100vh;
     width: 100vw;
-    background-image: url("{image}");
     background-size: cover;
     background-position: center;
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    padding-right: 4rem;
+  }
+
+
+  
+  @keyframes bg-float {
+    0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(-6px); }
+}
+
+  @keyframes sun-pulse {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.15); }
   }
 
   .journal-box {
@@ -281,7 +245,7 @@
 
 .creature-container {
   position: relative;
-  bottom: 1.5rem;
+  bottom: -1rem;
   left: 1.5rem;
   display: flex;
   align-items: flex-end;
@@ -289,10 +253,19 @@
 }
 
 .creature {
-  width: min(35vw, 500px);
+  width: min(25vw, 400px);
   height: auto;
   transform: translate(10px, 110px);
   
+}
+
+.creature {
+  animation: capy-idle 4s ease-in-out infinite;
+}
+
+@keyframes capy-idle {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
 }
 
 .creature-container {
@@ -306,8 +279,8 @@
 
 .speech-bubble {
   position: absolute;
-  top: -10%;  /* move above head, scales with creature */
-  left: 70%;  /* to the right of the creature */
+  top: -31%;  
+  left: 76%;
   width: min(20vw, 200px);
   height: min(20hw, 200px);
   max-width: 60vw;
@@ -357,9 +330,11 @@
     gap: 8px;               /* small space between them */
     width: 100%;
     max-width: 600px;       /* optional: limit width */
+    position: absolute;
+    right: 10%;
   }
 
-  .entry-wrapper p {
+  .entry-wrapper p:not(.success) {
     font-size: 20px;
     background: white;
     color: #8b7355;
@@ -370,27 +345,88 @@
     border: 3px solid #7a5c2e;
   }
 
+  .page-bg {
+    height: 100vh;
+    width: 100vw;
+    object-size: cover;
+    object-position: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation:
+      bg-float 5s ease-in-out infinite,
+      sun-pulse 6s ease-in-out infinite;
+    
+  }
+
+.success {
+  background: rgb(95, 197, 34, 39%);
+  border: 1px solid rgb(124, 197, 34, 35%);
+  color: #404f32ad;
+  font-style: oblique;
+  padding: 0.3rem;
+  border-radius: 4px;
+  width: -webkit-fill-available;
+  margin-left: 0.5rem;
+}
+
+.load-btn {
+  padding: 0.7rem 1rem;
+  background: #1f5e0bde;
+  color: #75a167de;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  letter-spacing: 0.1rem;
+  flex-shrink: 0;
+}
+
+.load-btn:hover:not(:disabled) {
+  background: #154008de;
+}
+
+.load-btn:disabled {
+  background: #287a0fde;
+  cursor: not-allowed;
+}
+
+.save-wrapper {
+  display: flex;
+}
+
 </style>
 
-<div class="page-container" style="background-image: url('{image}')">
-<div class="entry-wrapper">
- <p>Journal Entry: {formattedDate}</p>
-  <textarea
-    class="journal-box"
-    bind:value={journalText}
-    on:input={handleInput}
-    placeholder="Write your thoughts here..."
-  ></textarea>
-  </div>
+<div class="page-container">
+  <div class="creature-info-container" >
+    <img src="{image}" class="page-bg">
     <div class="creature-wrapper">
-    <div class="creature-container">
-    <img src="{creature}" alt="creature" class="creature" />
-
-        {#if feedback}
-            <div class="speech-bubble">
-            {feedback}
+      <div class="creature-container">
+        <img src="{creature}" alt="creature" class="creature" />
+          {#if feedback}
+            <div class="speech-bubble" in:fade={{ duration: 400 }} out:fade={{ duration: 300 }}>
+              {feedback}
             </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+    <div class="entry-wrapper">
+      <p>Journal Entry: {formattedDate}</p>
+      <textarea
+        class="journal-box"
+        bind:value={journalText}
+        on:input={handleInput}
+        placeholder="Write your thoughts here..."
+      ></textarea>
+      <div class = "save-wrapper">
+        <button on:click={saveDraftToDB} disabled={isSaving} class="load-btn">
+          save
+        </button>
+        {#if success}
+          <p class="success" in:fade={{ duration: 300 }} out:fade={{ duration: 300 }}>{success}</p>
         {/if}
-    </div>
-    </div>
+      </div>
+  </div>
 </div>
