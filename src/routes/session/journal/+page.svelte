@@ -46,7 +46,7 @@
       const data = await res.json();
       // adapt to whatever your endpoint returns
       feedback = data?.response ?? data?.reply ?? "";
-      console.log("feedback change", feedback);
+      setTimeout(()=>{feedback = ""}, 6000);
     } catch (err) {
       console.error("Failed to call API", err);
     }
@@ -76,7 +76,6 @@
       if (!res.ok) {
         console.error("Autosave failed:", data);
       } else {
-        console.log("Autosaved draft to DB", date);
         success = "journal entry saved...";
         localStorage.setItem("currentJournalText", journalText);
         setTimeout(()=> {
