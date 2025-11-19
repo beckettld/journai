@@ -7,6 +7,7 @@
 
 
   let feedback = "";
+  let feedbackHistory = [];
   let journalText = "";
   let success = "";
   let timeoutId: NodeJS.Timeout | null = null;
@@ -39,14 +40,21 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content,
-          uid: $authUser.uid
+          uid: $authUser.uid,
+          feedbackHistory
         })
       });
 
       const data = await res.json();
       // adapt to whatever your endpoint returns
       feedback = data?.response ?? data?.reply ?? "";
+      // clear feedback after some time
       setTimeout(()=>{feedback = ""}, 6000);
+
+      // add this to feedback history
+      if (feedback.trim() !== "") {
+        feedbackHistory.push(feedback);
+      }
     } catch (err) {
       console.error("Failed to call API", err);
     }

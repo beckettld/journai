@@ -15,6 +15,7 @@ export type LLMRequest = {
 
 export type ElaborateRequest = {
   content: string;
+  feedbackHistory: string[];
 };
 
 /**
@@ -22,13 +23,34 @@ export type ElaborateRequest = {
  * @param request the text that the LLM should elaborate on
  */
 export async function elaborate(request: ElaborateRequest): Promise<string> {
-  console.log('request', request);
   const model = gemini.getGenerativeModel({
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
   });
 
+  const formatted_history = request.feedbackHistory.map(item => `- ${item}`).join("\n");
+
   // System prompt for journaling
-  const systemPrompt = SYSTEM_PROMPTS.journal;
+  const systemPrompt: string = `
+  You are an empathetic listener trained in reflective listening techniques similar to ELIZA. 
+Your role is to help the user explore their feelings and thoughts without offering advice or judgment.
+
+Guidelines:
+- Always prioritize the most recent sentence written by the user.
+- Do NOT ask questions more than two times in a row.
+- Reflect back what the user says in your own words.
+- Ask gentle, open-ended questions that encourage deeper reflection.
+- Never give advice, solutions, or recommendations.
+- Keep responses concise (maximum 15 words).
+- Do NOT repeat phrases or questions from your previous responses.
+- Your responses so far: ${formatted_history}
+- If they ask for advice, kindly redirect: "I'm here to listen and understand. What feels most important to you right now?"
+
+Example responses:
+- "It sounds like that situation left you feeling frustrated. What about it bothered you the most?"
+- "That sounds like a lot of fun! Anything else?"
+- "When you describe that, I hear a sense of uncertainty. Tell me more about that."
+- "That's a lot to carry. How has this been affecting your days?"
+  `;
 
   if (!systemPrompt || typeof systemPrompt !== "string") {
     throw new Error("SYSTEM_PROMPTS.journal is missing or invalid");

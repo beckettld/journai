@@ -11,10 +11,11 @@ import type { RequestHandler } from '../$types';
 import { elaborate, type ElaborateRequest } from "$lib/server/llm";
 
 export const POST: RequestHandler = async ({ request }) => {
-  const { content } = await request.json();
+  const { content, feedbackHistory } = await request.json();
   try {
     const elaborateRequest: ElaborateRequest = {
-        content: content
+        content,
+        feedbackHistory
     };
     const response = await elaborate(elaborateRequest);
     return json({
