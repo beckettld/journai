@@ -35,16 +35,16 @@
 <style>
   .timer-bar-container {
     background: white;
-    padding: 1.5rem;
+    padding: 0.85rem 1.1rem;
     border-bottom: 2px solid #e0d5c7;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
   }
 
   .timer-info {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.6rem;
   }
 
   .timer-label {
@@ -56,16 +56,16 @@
   }
 
   .timer-display {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     font-weight: 600;
     color: #8b7355;
     font-family: 'Courier New', monospace;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
   }
 
   .progress-bar {
     width: 100%;
-    height: 6px;
+    height: 4px;
     background: #e0d5c7;
     border-radius: 3px;
     overflow: hidden;
@@ -77,20 +77,20 @@
     transition: width 0.3s ease;
   }
 
+  .warning,
+  .expired {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
   .warning {
-    margin-top: 0.75rem;
-    font-size: 0.9rem;
     color: #d97706;
     font-weight: 500;
-    text-align: center;
   }
 
   .expired {
-    margin-top: 0.75rem;
-    font-size: 0.9rem;
     color: #10b981;
     font-weight: 600;
-    text-align: center;
   }
 </style>
-

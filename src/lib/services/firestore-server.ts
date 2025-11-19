@@ -12,6 +12,16 @@ export type VentSession = {
   lastUpdated: Timestamp;
 };
 
+export type UserDocument = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  admin?: boolean;
+  createdAt: Timestamp;
+  lastLoginAt: Timestamp;
+};
+
 export type WeekDocument = {
   weekId: string;
   ventEntryCount: number;
@@ -76,6 +86,63 @@ export async function saveVentSessionServer(
       },
       { merge: true }
     );
+  }
+}
+
+/**
+ * Check if a user is an admin
+ * Path: /users/{uid}
+ */
+export async function isUserAdmin(uid: string): Promise<boolean> {
+  try {
+    const db = getAdminDb();
+    const userRef = db.doc(`users/${uid}`);
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+      console.log(`[isUserAdmin] User document does not exist for uid: ${uid}`);
+      return false;
+    }
+    
+    const userData = userDoc.data();
+    console.log(`[isUserAdmin] User ${uid} - Full document data:`, JSON.stringify(userData, null, 2));
+    console.log(`[isUserAdmin] User ${uid} - admin field value:`, userData?.admin, `type:`, typeof userData?.admin);
+    
+    // Check for boolean true, or string "true"
+    const adminValue = userData?.admin;
+    const isAdmin = adminValue === true || adminValue === 'true' || adminValue === 1;
+    
+    console.log(`[isUserAdmin] User ${uid} - Final isAdmin result: ${isAdmin}`);
+    return isAdmin;
+  } catch (err: any) {
+    console.error(`[isUserAdmin] Error checking admin status for ${uid}:`, err);
+    console.error(`[isUserAdmin] Error stack:`, err.stack);
+    return false;
+  }
+}
+
+/**
+ * Get the vent count for a specific week (server-side)
+ * Path: /users/{uid}/weeks/{weekId}
+ */
+export async function getWeekVentCountServer(uid: string, weekId: string): Promise<number> {
+  try {
+    const db = getAdminDb();
+    const weekRef = db.doc(`users/${uid}/weeks/${weekId}`);
+    const weekDoc = await weekRef.get();
+    
+    if (!weekDoc.exists) {
+      console.log(`[getWeekVentCountServer] Week document does not exist for uid: ${uid}, weekId: ${weekId}`);
+      return 0;
+    }
+    
+    const weekData = weekDoc.data() as WeekDocument;
+    const count = weekData?.ventEntryCount || 0;
+    console.log(`[getWeekVentCountServer] Week ${weekId} has ${count} vent entries`);
+    return count;
+  } catch (err: any) {
+    console.error(`[getWeekVentCountServer] Error getting vent count for ${uid}/${weekId}:`, err);
+    return 0;
   }
 }
 

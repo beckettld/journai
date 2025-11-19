@@ -44,6 +44,7 @@ export type UserDocument = {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  admin?: boolean;
   createdAt: Timestamp;
   lastLoginAt: Timestamp;
 };
@@ -81,6 +82,7 @@ export async function createOrUpdateUser(
       email: userData.email,
       displayName: userData.displayName,
       photoURL: userData.photoURL,
+      admin: true,
       createdAt: now,
       lastLoginAt: now,
     });
@@ -145,6 +147,20 @@ export async function getWeekVentCount(uid: string, weekId: string): Promise<num
 }
 
 /**
+ * Get user document
+ */
+export async function getUserDocument(uid: string): Promise<UserDocument | null> {
+  const userRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userRef);
+
+  if (!userDoc.exists()) {
+    return null;
+  }
+
+  return userDoc.data() as UserDocument;
+}
+
+/**
  * Get the week document
  */
 export async function getWeekDocument(uid: string, weekId: string): Promise<WeekDocument | null> {
@@ -163,22 +179,81 @@ export async function getWeekDocument(uid: string, weekId: string): Promise<Week
 
 export async function saveJournalEntry(uid: string, date: string, content: string): Promise<void> {
   const ref = doc(db, `users/${uid}/journal`, date);
-  await setDoc(ref, {
-    date,
-    content,
-    lastUpdated: Timestamp.now()
-  }, { merge: true });
+  await setDoc(
+    ref,
+    {
+      date,
+      content,
+      lastUpdated: Timestamp.now(),
+    },
+    { merge: true }
+  );
 }
 
 export async function getJournalEntry(uid: string, date: string): Promise<string> {
   const ref = doc(db, `users/${uid}/journal`, date);
   const snap = await getDoc(ref);
 
-  if (!snap.exists()){
+  if (!snap.exists()) {
     throw new Error('journal entry does not exist!');
   }
   return snap.data().content;
+}
 
+function getIsoWeekDateRange(weekId: string) {
+  const [yearPart, weekPart] = weekId.split('-W');
+  const year = Number(yearPart);
+  const week = Number(weekPart);
+
+  if (Number.isNaN(year) || Number.isNaN(week)) {
+    throw new Error(`Invalid weekId: ${weekId}`);
+  }
+
+  const firstThursday = new Date(Date.UTC(year, 0, 4));
+  const dayOfWeek = firstThursday.getUTCDay() || 7;
+
+  const isoWeekStart = new Date(firstThursday);
+  isoWeekStart.setUTCDate(firstThursday.getUTCDate() - (dayOfWeek - 1) + (week - 1) * 7);
+
+  const isoWeekEnd = new Date(isoWeekStart);
+  isoWeekEnd.setUTCDate(isoWeekStart.getUTCDate() + 6);
+
+  const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
+
+  return {
+    startDate: toIsoDate(isoWeekStart),
+    endDate: toIsoDate(isoWeekEnd),
+  };
+}
+
+export async function getWeeklyJournalEntries(uid: string, weekId: string): Promise<JournalEntry[]> {
+  const { startDate, endDate } = getIsoWeekDateRange(weekId);
+  const journalRef = collection(db, `users/${uid}/journal`);
+  const journalQuery = query(
+    journalRef,
+    where('date', '>=', startDate),
+    where('date', '<=', endDate),
+    orderBy('date', 'asc')
+  );
+  const snapshot = await getDocs(journalQuery);
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data() as JournalEntry;
+    return {
+      id: docSnap.id,
+      date: data.date,
+      content: data.content,
+    };
+  });
+}
+
+export function summarizeJournalEntries(entries: JournalEntry[]): string {
+  if (!entries.length) {
+    return 'No journal entries this week.';
+  }
+
+  return entries
+    .map((entry) => `(${entry.date}) ${entry.content}`)
+    .join('\n\n---\n\n');
 }
 
 
@@ -478,4 +553,3 @@ export function summarizeVentEntries(entries: ChatEntry[]): string {
   const summary = allMessages.join('\n\n---\n\n');
   return `Here's what you shared with me this week:\n\n${summary}`;
 }
-

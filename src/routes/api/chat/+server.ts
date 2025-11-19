@@ -1,7 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { callLLM, SYSTEM_PROMPTS } from '$lib/server/llm';
-import { getWeeklyVentEntries, summarizeVentEntries } from '$lib/services/firestore';
+import { getWeeklyJournalEntries, summarizeJournalEntries } from '$lib/services/firestore';
+import { isUserAdmin, getWeekVentCountServer } from '$lib/services/firestore-server';
 
 /**
  * POST /api/chat
@@ -31,17 +32,26 @@ export const POST: RequestHandler = async ({ request }) => {
       throw error(400, 'Missing required fields: message, mode, uid, weekId');
     }
 
+    // For mentor mode, check if user has access (admin or 5+ vent sessions)
+    if (mode === 'mentor') {
+      const isAdmin = await isUserAdmin(uid);
+      const ventCount = await getWeekVentCountServer(uid, weekId);
+      
+      if (!isAdmin && ventCount < 5) {
+        throw error(403, 'Mentor sessions require 5 completed vent sessions or admin access');
+      }
+    }
+
     let systemPrompt = SYSTEM_PROMPTS[mode as keyof typeof SYSTEM_PROMPTS];
     let context = '';
 
-    // For mentor mode, fetch and summarize the week's vent entries
+    // For mentor mode, fetch and summarize the week's journal entries
     if (mode === 'mentor' && uid && weekId) {
       try {
-        const db = getFirestore(adminApp);
-        const ventEntries = await getWeeklyVentEntries(uid, weekId);
-        context = summarizeVentEntries(ventEntries);
+        const journalEntries = await getWeeklyJournalEntries(uid, weekId);
+        context = summarizeJournalEntries(journalEntries);
       } catch (firestoreError) {
-        console.error('Error fetching vent entries:', firestoreError);
+        console.error('Error fetching journal entries:', firestoreError);
         // Continue without context if Firestore fetch fails
       }
     }
@@ -108,7 +118,7 @@ export const POST: RequestHandler = async ({ request }) => {
  * 
  * 2. MENTOR MODE (mode: "mentor")
  *    - Uses MentorAgent system prompt (analytical, advice-giving)
- *    - Fetches all vent entries from the current week (from Firestore)
+ *    - Fetches the user's journal entries from the current week (from Firestore)
  *    - Summarizes those entries and includes as context
  *    - Response: Structured format (What I Heard / Key Patterns / Your Focus)
  * 
@@ -131,4 +141,3 @@ export const POST: RequestHandler = async ({ request }) => {
  *   addMessageToChat({ role: 'assistant', content: data.reply });
  * }
  */
-
