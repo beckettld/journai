@@ -20,6 +20,7 @@
 
   // Helper: ISO date YYYY-MM-DD
   const isoToday = () => new Date().toISOString().slice(0, 10);
+  let currentDate = isoToday(); // used for autosave reset
 
   // Get today's date 
   const today = new Date(); 
@@ -67,7 +68,7 @@
     if (!journalText || journalText.trim().length === 0) return; // don't save empty drafts
 
     isSaving = true;
-    const date = isoToday();
+    const date = currentDate;
 
     try {
       const res = await fetch("/api/journal/entry", {
@@ -119,7 +120,7 @@
   async function loadJournalFromDB() {
     if (!$authUser?.uid) return null;
 
-    const today = isoToday();
+    const today = currentDate;
 
     try {
       const res = await fetch(`/api/journal/entry?uid=${$authUser.uid}&date=${today}`);
@@ -157,7 +158,29 @@
     }
 
     // Start periodic autosave to DB
-    autosaveTimer = setInterval(() => {
+    autosaveTimer = setInterval(async () => {
+      const todayNow = isoToday();
+
+      // If the day changed while tab stayed open
+      if (todayNow !== currentDate) {
+        console.log("New day detected — reloading journal");
+
+        currentDate = todayNow;
+
+        // Load fresh entry for the new day
+        const newEntry = await loadJournalFromDB();
+
+        if (newEntry !== null) {
+          journalText = newEntry;
+        } else {
+          // New day but no entry yet → empty or local draft reset
+          journalText = "";
+          localStorage.removeItem("currentJournalText");
+        }
+
+        return; // Don't autosave old text into the new date
+      }
+
       saveDraftToDB();
     }, AUTOSAVE_INTERVAL_MS);
 
