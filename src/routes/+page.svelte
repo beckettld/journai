@@ -128,19 +128,6 @@
       </div>
 
       <div class="session-grid">
-        <div class="session-card daily-card">
-          <div class="card-header">
-            <h3>Daily Vent Session</h3>
-            <span class="badge">30 min</span>
-          </div>
-          <p class="card-description">
-            Reflect with empathy. Share your thoughts without judgment. I'm here to listen.
-          </p>
-          <button class="session-button" on:click={startDaily}>
-            Start Daily Session
-          </button>
-        </div>
-
         <div class="session-card journal-card">
           <div class="card-header">
             <h3>Daily Journal Entry</h3>
