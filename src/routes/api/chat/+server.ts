@@ -56,6 +56,18 @@ export const POST: RequestHandler = async ({ request }) => {
       }
     }
 
+    console.log('--- Debug Chat History ---');
+console.log('Raw history from frontend:', JSON.stringify(history, null, 2));
+console.log('Message to be added:', JSON.stringify({ role: 'user', content: message }, null, 2));
+
+const messagesToSend = [
+  ...(history || []),
+  { role: 'user', content: message },
+];
+
+console.log('Combined messages going to callLLM:', JSON.stringify(messagesToSend, null, 2));
+
+
     const reply = await callLLM({
       system: systemPrompt,
       messages: [

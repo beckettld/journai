@@ -5,7 +5,6 @@
   import { getISOWeek, getYear } from 'date-fns';
   import TimerBar from '$lib/components/TimerBar.svelte';
   import image from '$lib/images/journal-bg.png';
-  import creature from '$lib/images/capybara.png';
 
   type WeeklySummaryData = {
     noticed: string[];
@@ -13,11 +12,11 @@
     message?: string;
   };
   type SessionEntry = { role: 'user' | 'assistant'; content: string; timestamp?: number };
+  type JournalEntry = { id: string; date: string; content: string };
 
   let loading = false;
   let error: string | null = null;
   let userMessage = '';
-  let bubbleReply = 'Share what stood out this week. I am listening.';
   let weeklySummary: WeeklySummaryData | null = null;
   let summaryMessage = 'Loading a reflection summary from your journal entries...';
   let summaryLoaded = false;
@@ -30,8 +29,20 @@
   let sessionStartTime = 0;
   let sessionTimer: ReturnType<typeof setInterval> | null = null;
   let sessionLog: SessionEntry[] = [];
-  let userEntries: SessionEntry[] = [];
-  $: userEntries = sessionLog.filter((entry) => entry.role === 'user');
+  const mentorGreeting =
+    "Share what stood out this week. I am listening.";
+  let latestAssistantReply = mentorGreeting;
+  let journalEntries: JournalEntry[] = [];
+  let journalEntriesLoading = false;
+  let journalEntriesLoaded = false;
+  let journalEntriesError: string | null = null;
+  let selectedJournalEntry: JournalEntry | null = null;
+  let previousWeekId: string | null = null;
+  $: latestAssistantReply =
+    sessionLog
+      .slice()
+      .reverse()
+      .find((entry) => entry.role === 'assistant')?.content ?? mentorGreeting;
 
   function computeWeekId() {
     const now = new Date();
@@ -75,16 +86,78 @@
     computeWeekId();
     startSessionTimer();
 
-    const openingMessage =
-      "Welcome to your weekly reflection session. I've reviewed everything you shared with me this week. Let's explore what patterns I noticed and what might be helpful for you going forward. What would you like to focus on today?";
-
-    bubbleReply = openingMessage;
-    sessionLog = [{ role: 'assistant', content: openingMessage, timestamp: Date.now() }];
+    
+    sessionLog = [];
   });
 
   onDestroy(() => {
     stopSessionTimer();
   });
+
+  function formatEntryDate(dateStr: string) {
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return dateStr;
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
+  function selectJournalEntry(entry: JournalEntry) {
+    selectedJournalEntry = entry;
+  }
+
+  function resetJournalEntrySelection() {
+    selectedJournalEntry = null;
+  }
+
+  async function loadJournalEntries() {
+    if (journalEntriesLoading || !$authUser?.uid || !weekId) return;
+    journalEntriesLoading = true;
+    journalEntriesError = null;
+
+    try {
+      const params = new URLSearchParams({
+        uid: $authUser.uid,
+        weekId,
+      });
+      const res = await fetch(`/api/journal/entries?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Unable to load journal entries.');
+      }
+
+      journalEntries = data.entries ?? [];
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      journalEntries = [];
+      journalEntriesError = message || 'Unable to load journal entries right now.';
+    } finally {
+      journalEntriesLoading = false;
+      journalEntriesLoaded = true;
+    }
+  }
+
+  $: if (weekId && weekId !== previousWeekId) {
+    previousWeekId = weekId;
+    journalEntries = [];
+    journalEntriesLoaded = false;
+    journalEntriesError = null;
+    selectedJournalEntry = null;
+  }
+
+  $: if (weekId && $authUser?.uid && !journalEntriesLoaded) {
+    loadJournalEntries();
+  }
+
+  $: if (journalEntriesLoaded && weekId && $authUser?.uid && selectedJournalEntry) {
+    const stillExists = journalEntries.some((entry) => entry.id === selectedJournalEntry?.id);
+    if (!stillExists) {
+      selectedJournalEntry = null;
+    }
+  }
 
   async function loadWeeklySummary() {
     if (summaryLoading || !$authUser?.uid || !weekId) return;
@@ -127,7 +200,15 @@
 
     try {
       // Convert sessionLog to history format (remove timestamp field)
-      const history = sessionLog.map(({ role, content }) => ({ role, content }));
+      const history = sessionLog
+        // Remove empty messages
+        .filter(m => m.content && m.content.trim().length > 0)
+
+        // Keep only user messages or assistant messages that have a timestamp (i.e., not the static greeting)
+        .filter(m => m.role === 'user' || m.timestamp)
+
+        // Keep only role + content for API
+        .map(({ role, content }) => ({ role, content }));
       const userEntry = { role: 'user', content: message, timestamp: Date.now() };
       sessionLog = [...sessionLog, userEntry];
 
@@ -149,7 +230,6 @@
         throw new Error(data.error || 'Failed to get mentor response');
       }
 
-      bubbleReply = data.reply;
       sessionLog = [
         ...sessionLog,
         { role: 'assistant', content: data.reply, timestamp: Date.now() },
@@ -252,11 +332,43 @@
         {/if}
       </div>
     </section>
-
-    <div class="creature-container">
-      <img src="{creature}" alt="Capybara guide" class="creature" />
-      <div class="speech-bubble">{bubbleReply}</div>
-    </div>
+    <section class="journal-entries-card">
+      <div class="journal-entries-header">
+        <span>Daily Journals</span>
+      </div>
+      <div class="journal-entries-body">
+        {#if journalEntriesLoading}
+          <p class="journal-entry-placeholder">Loading your journal entries...</p>
+        {:else if journalEntriesError}
+          <p class="journal-entry-placeholder error">{journalEntriesError}</p>
+        {:else if !journalEntries.length}
+          <p class="journal-entry-placeholder">You don’t have any journal entries yet.</p>
+        {:else if selectedJournalEntry}
+          <div class="journal-entry-detail">
+            <div class="journal-entry-detail-header">
+              <button class="journal-entry-back" on:click={resetJournalEntrySelection}>
+                ← Back
+              </button>
+              <h4>{formatEntryDate(selectedJournalEntry.date)}</h4>
+            </div>
+            <div class="journal-entry-content">
+              {selectedJournalEntry.content}
+            </div>
+          </div>
+        {:else}
+          <div class="journal-entry-list" role="list">
+            {#each journalEntries as entry (entry.id)}
+              <button
+                class="journal-entry-button"
+                on:click={() => selectJournalEntry(entry)}
+              >
+                <span class="entry-date">{formatEntryDate(entry.date)}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </section>
   </div>
 
   <div class="chat-panel">
@@ -270,17 +382,17 @@
     </div>
 
     <section class="reflection-section">
-      <div class="user-message-feed" aria-live="polite">
-        {#if userEntries.length}
-          {#each userEntries as entry, index (entry.timestamp ?? index)}
-            <div class="user-message-row">
-              <div class="user-message-bubble">
+      <div class="chat-feed" aria-live="polite">
+        {#if sessionLog.length}
+          {#each sessionLog as entry, index (entry.timestamp ?? `${entry.role}-${index}`)}
+            <div class={`chat-row ${entry.role}`}>
+              <div class="chat-bubble">
                 {entry.content}
               </div>
             </div>
           {/each}
         {:else}
-          <p class="user-placeholder">Your reflections will appear here after you send them.</p>
+          <p class="chat-placeholder">Your reflections will appear here after you send them.</p>
         {/if}
       </div>
       <textarea
@@ -301,6 +413,14 @@
           {:else}
             Send
           {/if}
+        </button>
+        <button
+          class="submit-button"
+          on:click={handleSessionEnd}
+          disabled={!sessionActive || loading}
+          type="button"
+        >
+          End session
         </button>
       </div>
     </section>
@@ -344,13 +464,13 @@
     flex-direction: column;
     gap: 1.25rem;
     min-height: min(78vh, 660px);
-    justify-content: space-between;
   }
 
   .chat-panel {
-    flex: 0 1 520px;
-    width: min(520px, 48vw);
-    max-width: 560px;
+    flex: 1 1 720px;
+    min-width: 0;
+    width: auto;
+    max-width: none;
     min-height: min(78vh, 660px);
     display: flex;
     flex-direction: column;
@@ -382,6 +502,125 @@
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.15);
     align-self: flex-start;
     overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .journal-entries-card {
+    width: 100%;
+    max-width: 420px;
+    flex: 1;
+    background: rgba(255, 248, 238, 0.85);
+    border: 2px dashed #c29452;
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 0;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  .journal-entries-header {
+    font-weight: 600;
+    color: #5c411d;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .journal-entries-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .journal-entry-list {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+
+  .journal-entry-button {
+    border: 2px solid #d8c2a4;
+    border-radius: 10px;
+    background: #fffdf8;
+    padding: 0.75rem;
+    text-align: left;
+    font-family: 'Courier New', monospace;
+    color: #5c411d;
+    cursor: pointer;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .journal-entry-button .entry-date {
+    font-weight: 600;
+  }
+
+  .journal-entry-button:hover {
+    border-color: #a87532;
+    transform: translateX(4px);
+  }
+
+  .journal-entry-placeholder {
+    font-style: italic;
+    color: #a0783c;
+    text-align: center;
+    margin: 0;
+  }
+
+  .journal-entry-placeholder.error {
+    color: #c2185b;
+  }
+
+  .journal-entry-detail {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .journal-entry-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .journal-entry-detail-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: #5c411d;
+  }
+
+  .journal-entry-back {
+    border: none;
+    background: #7a5c2e;
+    color: #fff;
+    padding: 0.5rem 0.85rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  .journal-entry-content {
+    flex: 1;
+    min-height: 0;
+    border: 2px solid #d8c2a4;
+    border-radius: 10px;
+    background: #fffdf8;
+    padding: 0.75rem;
+    font-family: 'Courier New', monospace;
+    color: #2e281f;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    line-height: 1.4;
   }
 
   .reflection-section {
@@ -396,8 +635,10 @@
     min-height: 0;
   }
 
-  .user-message-feed {
-    flex: 1;
+  .chat-feed {
+    flex: 0 0 auto;
+    height: clamp(320px, 55vh, 620px);
+    min-height: 320px;
     border: 2px solid #d8c2a4;
     border-radius: 10px;
     background: #fffdf8;
@@ -406,28 +647,50 @@
     flex-direction: column;
     gap: 0.5rem;
     overflow-y: auto;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
   }
 
-  .user-message-row {
+  .chat-row {
     display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .chat-row.assistant {
+    justify-content: flex-start;
+  }
+
+  .chat-row.user {
     justify-content: flex-end;
   }
 
-  .user-message-bubble {
-    background: linear-gradient(135deg, #7a5c2e 0%, #a87532 100%);
-    color: #fffaf0;
-    padding: 0.6rem 0.85rem;
-    border-radius: 16px 16px 4px 16px;
+  .chat-bubble {
+    padding: 0.65rem 0.95rem;
+    border-radius: 16px;
     max-width: 85%;
     font-family: 'Courier New', monospace;
     font-size: 0.95rem;
     line-height: 1.35;
-    box-shadow: 0 6px 16px rgba(122, 83, 33, 0.25);
     white-space: pre-wrap;
     word-break: break-word;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
   }
 
-  .user-placeholder {
+  .chat-row.assistant .chat-bubble {
+    background: #fff7e6;
+    border: 2px solid #e2c18b;
+    color: #5c411d;
+    border-top-left-radius: 4px;
+  }
+
+  .chat-row.user .chat-bubble {
+    background: linear-gradient(135deg, #7a5c2e 0%, #a87532 100%);
+    color: #fffaf0;
+    border-top-right-radius: 4px;
+  }
+
+  .chat-placeholder {
     font-style: italic;
     color: #b09772;
     margin: 0;
@@ -584,62 +847,6 @@
     margin: 0;
     font-size: 0.9rem;
     opacity: 0.8;
-  }
-
-  .creature-container {
-    display: flex;
-    align-items: flex-end;
-    gap: 1rem;
-    align-self: flex-start;
-    margin-top: auto;
-  }
-
-  .creature {
-    width: clamp(140px, 24vw, 240px);
-    height: auto;
-  }
-
-  .speech-bubble {
-    position: relative;
-    width: 520px;
-    max-width: 80vw;
-    min-height: 150px;
-    background: #fff7e6;
-    border: 3px solid #7a5c2e;
-    padding: 1.2rem 1.5rem;
-    font-family: 'Courier New', monospace;
-    font-size: 1rem;
-    border-radius: 14px;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
-    display: flex;
-    align-items: flex-start;
-    transform: translateY(-130px);
-  }
-
-  .speech-bubble::before {
-    content: '';
-    position: absolute;
-    bottom: -18px;
-    left: 70px;
-    width: 0;
-    height: 0;
-    border-left: 14px solid transparent;
-    border-right: 14px solid transparent;
-    border-top: 18px solid #fff7e6;
-    filter: drop-shadow(0 -2px 2px rgba(0, 0, 0, 0.15));
-  }
-
-  .speech-bubble::after {
-    content: '';
-    position: absolute;
-    bottom: -21px;
-    left: 70px;
-    width: 0;
-    height: 0;
-    border-left: 16px solid transparent;
-    border-right: 16px solid transparent;
-    border-top: 20px solid #7a5c2e;
-    z-index: -1;
   }
 
   @media (max-width: 900px) {

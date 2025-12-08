@@ -17,9 +17,6 @@
 <div class="timer-bar-container">
   <div class="timer-info">
     <span class="timer-label">Time Remaining</span>
-    <span class="timer-display">
-      {minutes}:{seconds.toString().padStart(2, '0')}
-    </span>
   </div>
   <div class="progress-bar">
     <div class="progress-fill" style="width: {100 - percentage}%;"></div>
