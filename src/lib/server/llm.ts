@@ -150,7 +150,9 @@ export async function callLLM(request: LLMRequest): Promise<string> {
     }
     
     const chat = model.startChat(chatConfig);
+    console.log('chat config:', chatConfig);
     const result = await chat.sendMessage(lastUserMessage);
+    console.log('chat bot response', result.response.text());
     text = result.response.text()?.trim() ?? '';
   }
 

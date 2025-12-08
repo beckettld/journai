@@ -7,6 +7,7 @@
 
 
   let feedback = "";
+  let feedbackKey = 0;
   let feedbackHistory = [];
   let journalText = "";
   let success = "";
@@ -135,6 +136,17 @@
       console.error("Error loading journal entry:", err);
       return null;
     }
+  }
+
+  // -- CLICK CREATURE --
+
+  function creatureClick() {
+    feedback =  feedbackHistory.at(-1);
+    if (!feedback) {
+      feedback = "Tell me about your day, I'm listening.";
+    }
+      // clear feedback after some time
+    setTimeout(()=>{feedback = ""}, 6000);
   }
 
   // -- SUCCESS --
@@ -286,7 +298,16 @@
   width: min(25vw, 400px);
   height: auto;
   transform: translate(10px, 110px);
-  
+  cursor: pointer;
+}
+
+.creature:hover:not(:disabled) {
+  width: min(26vw, 405px);
+  opacity: 0.95;
+}
+
+.creature:disabled {
+  cursor: not-allowed;
 }
 
 .creature {
@@ -402,7 +423,7 @@
 
 .load-btn {
   padding: 0.7rem 1rem;
-  background: #1f5e0bde;
+  background: #1e5e0bff;
   color: #75a167de;
   border: none;
   border-radius: 4px;
@@ -433,7 +454,7 @@
     <img src="{image}" class="page-bg">
     <div class="creature-wrapper">
       <div class="creature-container">
-        <img src="{creature}" alt="creature" class="creature" />
+        <img src="{creature}" alt="creature" class="creature"  on:click={creatureClick}/>
           {#if feedback}
             <div class="speech-bubble" in:fade={{ duration: 400 }} out:fade={{ duration: 300 }}>
               {feedback}
