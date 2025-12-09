@@ -141,7 +141,6 @@ export async function callLLM(request: LLMRequest): Promise<string> {
     let text = "";
     for (let attempt = 0; attempt < 3 && !text; attempt++) {
         const chatConfig: any = {
-            systemInstruction: systemPrompt,
             generationConfig: {
                 temperature: 0.8,
                 maxOutputTokens: 500,
@@ -155,7 +154,9 @@ export async function callLLM(request: LLMRequest): Promise<string> {
 
         const chat = model.startChat(chatConfig);
         console.log("chat config:", chatConfig);
-        const result = await chat.sendMessage(lastUserMessage);
+        // Include system prompt with the message instead
+        const messageWithSystem = `${systemPrompt}\n\n---USER MESSAGE---\n${lastUserMessage}`;
+        const result = await chat.sendMessage(messageWithSystem);
         console.log("chat bot response", result.response.text());
         text = result.response.text()?.trim() ?? "";
     }
