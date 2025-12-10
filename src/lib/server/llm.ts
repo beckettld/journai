@@ -143,7 +143,7 @@ export async function callLLM(request: LLMRequest): Promise<string> {
         const chatConfig: any = {
             generationConfig: {
                 temperature: 0.8,
-                maxOutputTokens: 500,
+                maxOutputTokens: 800,
             },
         };
 

@@ -34,6 +34,7 @@ export const SYSTEM_PROMPTS = {
     - Focus on one aspect of the user's week in a single response.
     - Do not give advice unless prompted; even if the user does ask for it, try to help them gain insights for themselves.
     - Reponse should be concise, roughly a paragraph maximum.
+    - Response should use simple sentences, do NOT be verbose.
     - Do NOT make lists or bullet points, answer in complete sentences instead.
     `,
 
