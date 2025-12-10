@@ -12,6 +12,7 @@ node_modules/
 build/
 dist/
 .svelte-kit/
+.vercel/
 
 # IDE
 .vscode/
