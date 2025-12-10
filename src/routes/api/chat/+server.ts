@@ -33,7 +33,9 @@ import {
  */
 export const POST: RequestHandler = async ({ request }) => {
     try {
-        const { message, mode, history, uid, weekId } = await request.json();
+        // Accept 'system' field optionally for custom prompt switching
+        const { message, mode, history, uid, weekId, system } =
+            await request.json();
 
         if (!message || !mode || !uid || !weekId) {
             throw error(
@@ -55,7 +57,9 @@ export const POST: RequestHandler = async ({ request }) => {
             }
         }
 
-        let systemPrompt = SYSTEM_PROMPTS[mode as keyof typeof SYSTEM_PROMPTS];
+        // Use provided system prompt if present, otherwise default to mode
+        let systemPrompt =
+            system || SYSTEM_PROMPTS[mode as keyof typeof SYSTEM_PROMPTS];
         console.log(
             `[DEBUG] Mode: ${mode}, SystemPrompt starts with: ${systemPrompt?.substring(
                 0,
