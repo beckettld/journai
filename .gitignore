@@ -36,3 +36,4 @@ yarn-debug.log*
 *-firebase-adminsdk-*.json
 journai-*-firebase-adminsdk-*.json
 
+.vercel/
