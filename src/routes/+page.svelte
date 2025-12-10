@@ -13,6 +13,13 @@
     content: string;
   };
 
+  type MentorHistoryEntry = {
+    id: string;
+    weekId?: string;
+    summary?: string | null;
+    messages: { role: string; content: string }[];
+  };
+
   let loading = false;
   let error: string | null = null;
   let showDashboard = false;
@@ -130,6 +137,35 @@
     });
   }
 
+  function formatWeekLabel(weekId: string) {
+    const [yearPart, weekPart] = weekId.split('-W');
+    const year = Number(yearPart);
+    const week = Number(weekPart);
+    if (Number.isNaN(year) || Number.isNaN(week)) return weekId;
+
+    const firstThursday = new Date(Date.UTC(year, 0, 4));
+    const dayOfWeek = firstThursday.getUTCDay() || 7;
+    const start = new Date(firstThursday);
+    start.setUTCDate(firstThursday.getUTCDate() - (dayOfWeek - 1) + (week - 1) * 7);
+    const end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
+
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+      });
+
+    const startYear = start.getUTCFullYear();
+    const endYear = end.getUTCFullYear();
+    const sameYear = startYear === endYear;
+    const range = `${fmt(start)}–${fmt(end)}`;
+
+    return sameYear
+      ? `Week of ${range}, ${startYear}`
+      : `Week of ${fmt(start)}, ${startYear} – ${fmt(end)}, ${endYear}`;
+  }
+
   async function loadJournalHistory() {
     if (journalHistoryLoading || !$authUser?.uid) return;
     journalHistoryLoading = true;
@@ -169,6 +205,41 @@
 
 
   $: selectedJournal = journalHistory.find((entry) => entry.id === selectedJournalId) ?? null;
+
+let mentorHistory: MentorHistoryEntry[] = [];
+let mentorHistoryLoading = false;
+let mentorHistoryError: string | null = null;
+let showMentorHistory = false;
+let selectedMentorId: string | null = null;
+let selectedMentor: MentorHistoryEntry | null = null;
+let mentorHistoryWeekId: string | null = null;
+
+async function loadMentorHistory() {
+  if (mentorHistoryLoading || !$authUser?.uid) return;
+  mentorHistoryLoading = true;
+  mentorHistoryError = null;
+
+  try {
+    const weekId = getCurrentWeekId(); // or allow choosing a week
+    const res = await fetch(`/api/history/mentor?uid=${$authUser.uid}&weekId=${weekId}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Unable to load mentor history');
+    mentorHistoryWeekId = weekId;
+    mentorHistory = (data.entries ?? []).map((entry) => ({
+      ...entry,
+      weekId,
+    }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    mentorHistory = [];
+    mentorHistoryError = message || 'Unable to load mentor history';
+  } finally {
+    mentorHistoryLoading = false;
+  }
+}
+
+$: selectedMentor = mentorHistory.find((entry) => entry.id === selectedMentorId) ?? null;
+
 </script>
 
 <div class="landing-container" style={`--landing-bg: url('${image}')`}>
@@ -237,7 +308,7 @@
             <span class="badge">60 min</span>
           </div>
           <p class="card-description">
-            Review your week. Explore patterns. Get actionable insights and next steps.
+            Review your week with an AI mentor. Explore patterns. Get actionable insights and next steps.
           </p>
           {#if checkingVentCount}
             <div class="checking-status">Checking progress...</div>
@@ -269,9 +340,21 @@
               on:click={startWeekly}
               disabled={!mentorEnabled || checkingVentCount}
             >
-              {checkingVentCount ? 'Checking...' : mentorEnabled ? 'Start Mentor Session' : 'Locked'}
+              {checkingVentCount ? 'Checking...' : mentorEnabled ? 'Start Reflection Session' : 'Locked'}
             </button>
-            
+            <button
+              class="session-button"
+              type="button"
+              on:click={() => {
+                showMentorHistory = true;
+                loadMentorHistory();
+              }}
+              style="background: #f5ede0;
+    color: #8b7355; border: 1px solid #d6c7b5;"
+            >
+              View Reflection History
+            </button>
+
           </div>
         </div>
       </div>
@@ -329,6 +412,82 @@
     </div>
   </div>
 {/if}
+
+{#if showMentorHistory}
+  <div class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="modal-eyebrow">Reflection Sessions</p>
+          <h3>Reflection History</h3>
+        </div>
+        <button class="close-button" type="button" on:click={() => (showMentorHistory = false)}>
+          Close
+        </button>
+      </div>
+
+      {#if mentorHistoryLoading}
+        <p class="modal-placeholder">Loading your reflections...</p>
+      {:else if mentorHistoryError}
+        <p class="modal-placeholder error">{mentorHistoryError}</p>
+      {:else if !mentorHistory.length}
+        <p class="modal-placeholder">No mentor sessions yet.</p>
+      {:else if selectedMentor}
+        <div class="modal-subheader">
+          <button class="back-button" type="button" on:click={() => (selectedMentorId = null)}>
+            ← Back
+          </button>
+          <div>
+            <p class="modal-eyebrow">Weekly Reflection</p>
+            <h4 class="modal-title">
+              {mentorHistoryWeekId ? formatWeekLabel(mentorHistoryWeekId) : 'Mentor Session'}
+            </h4>
+          </div>
+        </div>
+        <div class="modal-body scrollable">
+          {#if selectedMentor.summary}
+            <div class="summary-chip">
+              <p class="item-title">Summary</p>
+              <p class="item-subtitle">{selectedMentor.summary}</p>
+            </div>
+          {/if}
+          <div class="history-chat">
+            {#each selectedMentor.messages as msg}
+              <div class={`chat-line ${msg.role}`}>
+                <div class="chat-line-header">
+                  <span class="chat-role">{msg.role === 'assistant' ? 'Mentor' : 'You'}</span>
+                </div>
+                <p class="chat-content">{msg.content}</p>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <div class="history-list">
+          {#each mentorHistory as entry (entry.id)}
+            <button class="history-list-item" type="button" on:click={() => (selectedMentorId = entry.id)}>
+              <div>
+                <p class="item-title">
+                  {entry.weekId ? formatWeekLabel(entry.weekId) : 'Mentor Session'}
+                </p>
+                <p class="item-subtitle">
+                  {entry.summary
+                    ? entry.summary
+                    : entry.messages?.[0]?.content
+                    ? entry.messages[0].content.slice(0, 140)
+                    : 'View conversation'}
+                  {(entry.summary || entry.messages?.[0]?.content)?.length > 140 ? '…' : ''}
+                </p>
+              </div>
+              <span class="chevron">→</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
 
 <style>
   .landing-container {
@@ -473,15 +632,7 @@
 
   
 
-  .daily-card {
-    border-color: #c9b8a8;
-  }
-
-  
-
-  .mentor-card {
-    border-color: #c9b8a8;
-  }
+ 
 
 
   .card-header {
@@ -597,22 +748,7 @@
     gap: 0.75rem;
   }
 
-  .secondary-button {
-    width: 100%;
-    background: #f5ede0;
-    color: #8b7355;
-    border: 1px solid #d6c7b5;
-    padding: 0.85rem;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .secondary-button:hover:not(:disabled) {
-    background: #ede1cf;
-    transform: translateY(-1px);
-  }
+  
 
   .card-actions .session-button,
   .card-actions .secondary-button {

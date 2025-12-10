@@ -90,6 +90,47 @@ export async function saveVentSessionServer(
 }
 
 /**
+ * Save a mentor session to the entries collection (server-side)
+ * Path: /users/{uid}/weeks/{weekId}/entries/mentor
+ */
+export async function saveMentorSessionServer(
+  uid: string,
+  weekId: string,
+  data: {
+    messages: Message[];
+    summary?: string;
+    timestamp?: number;
+  }
+) {
+  const db = getAdminDb();
+
+  // Ensure the week document exists
+  const weekRef = db.doc(`users/${uid}/weeks/${weekId}`);
+  const weekDoc = await weekRef.get();
+  const now = Timestamp.now();
+
+  if (!weekDoc.exists) {
+    await weekRef.set({
+      weekId,
+      ventEntryCount: 0,
+      createdAt: now,
+      lastUpdated: now,
+    });
+  }
+
+  const entryRef = db.doc(`users/${uid}/weeks/${weekId}/entries/mentor`);
+  await entryRef.set({
+    uid,
+    weekId,
+    mode: 'mentor',
+    messages: data.messages,
+    summary: data.summary ?? null,
+    timestamp: data.timestamp ?? Date.now(),
+    lastUpdated: now,
+  });
+}
+
+/**
  * Check if a user is an admin
  * Path: /users/{uid}
  */
@@ -145,4 +186,3 @@ export async function getWeekVentCountServer(uid: string, weekId: string): Promi
     return 0;
   }
 }
-

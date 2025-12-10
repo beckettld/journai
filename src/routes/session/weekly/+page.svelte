@@ -218,9 +218,6 @@
         // Remove empty messages
         .filter(m => m.content && m.content.trim().length > 0)
 
-        // Keep only user messages or assistant messages that have a timestamp (i.e., not the static greeting)
-        .filter(m => m.role === 'user' || m.timestamp)
-
         // Keep only role + content for API
         .map(({ role, content }) => ({ role, content }));
       const userEntry = { role: 'user', content: message, timestamp: Date.now() };
