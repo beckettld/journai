@@ -161,9 +161,14 @@ export async function callLLM(request: LLMRequest): Promise<string> {
   return text;
 }
 
+export type SummaryItem = {
+  text: string;
+  reason: string;
+};
+
 export type WeeklySummary = {
-  noticed: string[];
-  focus: string[];
+  noticed: SummaryItem[];
+  focus: SummaryItem[];
   message?: string;
 };
 
@@ -171,14 +176,19 @@ const WEEKLY_SUMMARY_PROMPT = `You are journai, a concise journaling companion.
 
 Given the raw entries from the past week, respond ONLY with valid JSON using this shape:
 {
-  "noticed": ["short observation", "another observation"],
-  "focus": ["short suggestion", "another suggestion"]
+  "noticed": [
+    { "text": "short observation", "reason": "brief reasoning citing patterns across the week's entries" }
+  ],
+  "focus": [
+    { "text": "short suggestion", "reason": "brief reasoning tying the suggestion to the week's entries" }
+  ]
 }
 
 Requirements:
-- noticed contains 2 insights about themes or emotions (each < 20 words)
-- focus contains 2 practical suggestions for next week (each < 20 words)
-- No intro text, no markdown, no extra keys.
+- noticed contains 2 insights about themes or emotions (each text < 20 words)
+- focus contains 2 practical suggestions for next week (each text < 20 words)
+- Each reason is 1-2 sentences explaining why this item was chosen based on the week's entries
+- No intro text, no markdown, no extra keys
 - If there are no entries, set both arrays empty and do not add commentary.`;
 
 export async function generateWeeklySummary(entries: JournalEntry[]): Promise<WeeklySummary> {
@@ -212,8 +222,14 @@ export async function generateWeeklySummary(entries: JournalEntry[]): Promise<We
         Array.isArray(candidate.focus)
       ) {
         parsed = {
-          noticed: candidate.noticed.slice(0, 3).map((item: string) => item.trim()),
-          focus: candidate.focus.slice(0, 3).map((item: string) => item.trim()),
+          noticed: candidate.noticed.slice(0, 3).map((item: any) => ({
+            text: typeof item?.text === 'string' ? item.text.trim() : '',
+            reason: typeof item?.reason === 'string' ? item.reason.trim() : '',
+          })).filter((item: SummaryItem) => item.text.length > 0),
+          focus: candidate.focus.slice(0, 3).map((item: any) => ({
+            text: typeof item?.text === 'string' ? item.text.trim() : '',
+            reason: typeof item?.reason === 'string' ? item.reason.trim() : '',
+          })).filter((item: SummaryItem) => item.text.length > 0),
         };
       }
     } catch (err) {
@@ -236,22 +252,6 @@ export async function generateWeeklySummary(entries: JournalEntry[]): Promise<We
  * System prompts for each agent
  */
 export const SYSTEM_PROMPTS = {
-  vent: `You are an empathetic listener trained in reflective listening techniques similar to ELIZA. Your role is to help the user explore their feelings and thoughts without offering advice or judgment.
-
-Guidelines:
-- Reflect back what the user says in your own words
-- Ask gentle, open-ended questions that encourage deeper reflection
-- Never give advice, solutions, or recommendations
-- Keep responses concise (2-3 sentences)
-- Use warm, non-judgmental language
-- Focus on their emotions and experiences
-- If they ask for advice, kindly redirect: "I'm here to listen and understand. What feels most important to you right now?"
-
-Example responses:
-- "It sounds like that situation left you feeling frustrated. What about it bothered you the most?"
-- "When you describe that, I hear a sense of uncertainty. Tell me more about that."
-- "That's a lot to carry. How has this been affecting your days?"`,
-
   mentor: `You are a wise, empathetic mentor reviewing the user's week of reflections. Your role is to synthesize patterns, validate their experiences, and provide actionable guidance for the week ahead.
 
 Guidelines:

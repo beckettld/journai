@@ -6,9 +6,10 @@
   import TimerBar from '$lib/components/TimerBar.svelte';
   import image from '$lib/images/journal-bg.png';
 
+  type SummaryItem = { text: string; reason?: string };
   type WeeklySummaryData = {
-    noticed: string[];
-    focus: string[];
+    noticed: SummaryItem[];
+    focus: SummaryItem[];
     message?: string;
   };
   type SessionEntry = { role: 'user' | 'assistant'; content: string; timestamp?: number };
@@ -21,6 +22,7 @@
   let summaryMessage = 'Loading a reflection summary from your journal entries...';
   let summaryLoaded = false;
   let summaryLoading = false;
+  let summaryExpanded = false;
   let weekId = '';
   const SESSION_DURATION_MINUTES = 60;
   let timeRemaining = SESSION_DURATION_MINUTES;
@@ -170,8 +172,20 @@
       const res = await fetch(`/api/journal/summary?${params.toString()}`);
       const data = await res.json();
       if (data.success && data.summary) {
-        weeklySummary = data.summary;
-        summaryMessage = data.summary.message ?? '';
+        const normalizeItems = (items: any[] = []) =>
+          items
+            .map((item) => ({
+              text: typeof item?.text === 'string' ? item.text.trim() : '',
+              reason: typeof item?.reason === 'string' ? item.reason.trim() : '',
+            }))
+            .filter((item) => item.text.trim().length);
+
+        weeklySummary = {
+          noticed: normalizeItems(data.summary.noticed),
+          focus: normalizeItems(data.summary.focus),
+          message: data.summary.message,
+        };
+        summaryMessage = weeklySummary.message ?? '';
       } else {
         weeklySummary = null;
         summaryMessage = data.error || 'No journal entries were found for this week.';
@@ -288,14 +302,28 @@
     handleMessage(message);
     userMessage = '';
   }
+
+  function toggleSummaryExpanded() {
+    summaryExpanded = !summaryExpanded;
+  }
 </script>
 
 <div class="page-container" style={`background-image: url('${image}')`}>
   <div class="left-column">
-    <section class="summary-card">
+    <section class={`summary-card ${summaryExpanded ? 'expanded' : ''}`}>
       <div class="summary-header">
-        <span>Weekly Mentor Summary</span>
-        <small>Generated from your journal entries for this week.</small>
+        <div class="summary-title">
+          <span>Weekly Mentor Summary</span>
+          <small>Generated from your journal entries for this week. Click "Expand" to see mentor's reasonings.</small>
+        </div>
+        <button
+          class="expand-button"
+          on:click={toggleSummaryExpanded}
+          aria-expanded={summaryExpanded}
+          type="button"
+        >
+          {summaryExpanded ? 'Collapse' : 'Expand'}
+        </button>
       </div>
       <div class="summary-body">
         {#if weeklySummary}
@@ -303,8 +331,15 @@
             <p class="summary-subheader">What I Noticed</p>
             {#if weeklySummary.noticed.length}
               <ul class="summary-list">
-                {#each weeklySummary.noticed as item}
-                  <li>{item}</li>
+                {#each weeklySummary.noticed as item (item.text)}
+                  <li class="summary-item">
+                    <span class="summary-text">{item.text}</span>
+                    {#if summaryExpanded && item.reason}
+                      <p class="summary-reason">
+                        <strong>Mentor reasoning:</strong> {item.reason}
+                      </p>
+                    {/if}
+                  </li>
                 {/each}
               </ul>
             {:else if weeklySummary.message}
@@ -317,8 +352,15 @@
             <p class="summary-subheader">Focus For Next Week</p>
             {#if weeklySummary.focus.length}
               <ul class="summary-list">
-                {#each weeklySummary.focus as item}
-                  <li>{item}</li>
+                {#each weeklySummary.focus as item (item.text)}
+                  <li class="summary-item">
+                    <span class="summary-text">{item.text}</span>
+                    {#if summaryExpanded && item.reason}
+                      <p class="summary-reason">
+                        <strong>Mentor reasoning:</strong> {item.reason}
+                      </p>
+                    {/if}
+                  </li>
                 {/each}
               </ul>
             {:else if weeklySummary.message}
@@ -333,8 +375,12 @@
       </div>
     </section>
     <section class="journal-entries-card">
-      <div class="journal-entries-header">
-        <span>Daily Journals</span>
+      <div class="summary-header">
+      <div class="summary-title">
+        <span>Your journals this week</span>
+        <small>Refer back to your journal entries of the week here.</small>
+      </div>
+        
       </div>
       <div class="journal-entries-body">
         {#if journalEntriesLoading}
@@ -505,6 +551,11 @@
     flex-shrink: 0;
   }
 
+  .summary-card.expanded {
+    max-height: none;
+    overflow: visible;
+  }
+
   .journal-entries-card {
     width: 100%;
     max-width: 420px;
@@ -524,7 +575,6 @@
     font-weight: 600;
     color: #5c411d;
     font-size: 1rem;
-    text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
@@ -698,16 +748,42 @@
 
   .summary-header {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
     font-weight: 600;
     color: #5c411d;
     margin-bottom: 0.5rem;
+  }
+
+  .summary-title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
   }
 
   .summary-header small {
     font-size: 0.8rem;
     font-weight: 400;
     color: #a0783c;
+  }
+
+  .expand-button {
+    border: 2px solid #c29452;
+    background: #fff7e6;
+    color: #5c411d;
+    border-radius: 10px;
+    padding: 0.45rem 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    flex-shrink: 0;
+  }
+
+  .expand-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    background: #fff0d9;
   }
 
   .summary-body {
@@ -721,6 +797,11 @@
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+  }
+
+  .summary-card.expanded .summary-body {
+    max-height: none;
+    overflow: visible;
   }
 
   .summary-group {
@@ -755,6 +836,29 @@
     position: absolute;
     left: 0;
     color: #a0783c;
+  }
+
+  .summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding-right: 0.4rem;
+  }
+
+  .summary-text {
+    display: inline-block;
+    border-bottom: 1px dashed rgba(160, 120, 60, 0.6);
+  }
+
+  .summary-reason {
+    margin: 0;
+    background: rgba(46, 40, 31, 0.08);
+    border: 1px solid rgba(160, 120, 60, 0.35);
+    border-radius: 10px;
+    padding: 0.6rem 0.7rem;
+    font-size: 0.85rem;
+    line-height: 1.35;
+    color: #3a2f1f;
   }
 
   .mentor-input {
