@@ -174,17 +174,24 @@
       const res = await fetch(`/api/journal/summary?${params.toString()}`);
       const data = await res.json();
       if (data.success && data.summary) {
+        // Backend returns arrays of strings, convert to SummaryItem format
         const normalizeItems = (items: any[] = []) =>
           items
-            .map((item) => ({
-              text: typeof item?.text === 'string' ? item.text.trim() : '',
-              reason: typeof item?.reason === 'string' ? item.reason.trim() : '',
-            }))
+            .map((item) => {
+              // Handle both string format (from backend) and object format (if it changes)
+              if (typeof item === 'string') {
+                return { text: item.trim() };
+              }
+              return {
+                text: typeof item?.text === 'string' ? item.text.trim() : String(item || '').trim(),
+                reason: typeof item?.reason === 'string' ? item.reason.trim() : '',
+              };
+            })
             .filter((item) => item.text.trim().length);
 
         weeklySummary = {
-          noticed: normalizeItems(data.summary.noticed),
-          focus: normalizeItems(data.summary.focus),
+          noticed: normalizeItems(data.summary.noticed || []),
+          focus: normalizeItems(data.summary.focus || []),
           message: data.summary.message,
         };
         summaryMessage = weeklySummary.message ?? '';
