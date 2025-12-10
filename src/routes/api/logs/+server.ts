@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { saveChatEntry, getWeeklyVentEntries, getWeeklyEntries } from '$lib/services/firestore';
-import { saveVentSessionServer } from '$lib/services/firestore-server';
+import { getWeeklyVentEntries, getWeeklyEntries } from '$lib/services/firestore';
+import { saveVentSessionServer, saveMentorSessionServer } from '$lib/services/firestore-server';
 
 /**
  * POST /api/logs
@@ -45,11 +45,11 @@ export const POST: RequestHandler = async ({ request }) => {
         throw error(500, `Failed to save vent session: ${saveError.message}`);
       }
     } else {
-      // Mentor sessions go to entries collection
-      await saveChatEntry(uid, weekId, entryId, {
-        mode,
+      // Mentor sessions go to entries collection (server-side)
+      await saveMentorSessionServer(uid, weekId, {
         messages,
         summary,
+        timestamp: startTime, // optional startTime reuse
       });
     }
 
@@ -200,4 +200,3 @@ export const GET: RequestHandler = async ({ url }) => {
  * const data = await response.json();
  * const ventEntries = data.entries;  // Use these for context/display
  */
-

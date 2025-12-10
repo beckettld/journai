@@ -29,6 +29,8 @@ export type ChatEntry = {
   summary?: string;
 };
 
+
+
 export type VentSession = {
   id: string;
   startTime: number; // Unix timestamp in milliseconds
@@ -235,6 +237,20 @@ export async function getWeeklyJournalEntries(uid: string, weekId: string): Prom
     where('date', '<=', endDate),
     orderBy('date', 'asc')
   );
+  const snapshot = await getDocs(journalQuery);
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data() as JournalEntry;
+    return {
+      id: docSnap.id,
+      date: data.date,
+      content: data.content,
+    };
+  });
+}
+
+export async function getAllJournalEntries(uid: string): Promise<JournalEntry[]> {
+  const journalRef = collection(db, `users/${uid}/journal`);
+  const journalQuery = query(journalRef, orderBy('date', 'desc'));
   const snapshot = await getDocs(journalQuery);
   return snapshot.docs.map((docSnap) => {
     const data = docSnap.data() as JournalEntry;
@@ -537,6 +553,8 @@ export async function getWeeklyEntries(uid: string, weekId: string): Promise<Cha
     return aTime - bTime;
   });
 }
+
+
 
 /**
  * Summarize vent entries for the weekly mentor session
