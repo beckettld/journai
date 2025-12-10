@@ -423,8 +423,8 @@
 
 .load-btn {
   padding: 0.7rem 1rem;
-  background: #1e5e0bff;
-  color: #75a167de;
+  background: #3bb416ff;
+  color: #2f4129ff;
   border: none;
   border-radius: 4px;
   font-weight: 500;
@@ -435,11 +435,11 @@
 }
 
 .load-btn:hover:not(:disabled) {
-  background: #154008de;
+  background: #184709bf;
 }
 
 .load-btn:disabled {
-  background: #287a0fde;
+  background: #3bb416ff;
   cursor: not-allowed;
 }
 

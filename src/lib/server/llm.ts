@@ -54,7 +54,7 @@ export async function elaborate(request: ElaborateRequest): Promise<string> {
 
       Additional Guidelines:
       - Reflect back what the user says in your own words.
-      - Response should be 2 sentences maximum, and straight to the point.
+      - Response should be 15 words maximum, and straight to the point.
       - Do NOT repeat phrases or questions from your previous responses.
       - Your responses so far: ${formatted_history}
       - If they ask for advice, kindly redirect: "I'm here to listen and understand. What feels most important to you right now?"`;
