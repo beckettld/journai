@@ -5,6 +5,8 @@
   import { getISOWeek, getYear } from 'date-fns';
   import TimerBar from '$lib/components/TimerBar.svelte';
   import image from '$lib/images/journal-bg.png';
+  import creature from '$lib/images/capybara.png';
+  import { SYSTEM_PROMPTS } from '$lib/constants/prompts';
 
   type WeeklySummaryData = {
     noticed: string[];
@@ -86,7 +88,7 @@
     computeWeekId();
     startSessionTimer();
 
-    
+
     sessionLog = [];
   });
 
@@ -212,17 +214,23 @@
       const userEntry = { role: 'user', content: message, timestamp: Date.now() };
       sessionLog = [...sessionLog, userEntry];
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message,
-          mode: 'mentor',
-          history,
-          uid: $authUser?.uid,
-          weekId,
-        }),
-      });
+        // Switch to meditation prompt if timeRemaining <= 10, else use mentor
+        let systemPrompt = timeRemaining <= 10
+          ? SYSTEM_PROMPTS.meditation
+          : SYSTEM_PROMPTS.mentor;
+
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            mode: 'mentor',
+            history,
+            uid: $authUser?.uid,
+            weekId,
+            system: systemPrompt,
+          }),
+        });
 
       const data = await response.json();
 
@@ -234,7 +242,7 @@
         ...sessionLog,
         { role: 'assistant', content: data.reply, timestamp: Date.now() },
       ];
-      
+
     } catch (err: any) {
       error = err.message || 'Something went wrong';
     } finally {
